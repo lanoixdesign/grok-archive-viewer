@@ -1,0 +1,202 @@
+:root {
+    --bg: #0b0b0f;
+    --card: #16161e;
+    --text: #e0e0e0;
+    --accent: #ffffff;
+    --accent-hover: #00ffaa;
+    --border: #2a2a35;
+    --visited: #00cc88;
+}
+
+body.light {
+    --bg: #f8f9fa;
+    --card: #ffffff;
+    --text: #1f1f1f;
+    --accent: #000000;
+    --accent-hover: #006633;
+    --border: #d1d5db;
+    --visited: #008866;
+}
+
+body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+    transition: background 0.3s;
+}
+
+header {
+    background: rgba(11, 11, 15, 0.97);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.container { max-width: 1480px; margin: 0 auto; padding: 0 24px; }
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin: 20px 0;
+    background: var(--card);
+    padding: 16px 20px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    position: sticky; 
+    top: 100px;
+    z-index: 90;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 240px;
+}
+
+h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(90deg, #ffffff, #00ffaa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 9999px;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn:hover { transform: translateY(-2px); opacity: 0.9; }
+.btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.nav-anchor-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 16px;
+    border-radius: 9999px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: 0.2s;
+}
+.nav-anchor-btn:hover { background: var(--accent-hover); color: #000; }
+
+select {
+    padding: 11px 16px;
+    border-radius: 9999px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    background: var(--card);
+    padding: 15px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 20px 0 10px 0;
+}
+.accordion-header h2 { margin: 0; font-size: 1.2rem; color: var(--accent); }
+.accordion-icon { transition: transform 0.3s; }
+.collapsed .accordion-icon { transform: rotate(-90deg); }
+.hidden { display: none !important; }
+
+/* Items et Cartes */
+.link-item, .local-card { transition: border-color 0.3s, opacity 0.3s; position: relative; }
+.visited, .viewed { border-color: var(--visited) !important; opacity: 0.85; }
+.visited::after, .viewed::after {
+    position: absolute; top: 10px; right: 15px;
+    background: var(--visited); color: #000;
+    padding: 2px 10px; border-radius: 10px; font-size: 0.7rem; font-weight: bold; z-index: 5;
+}
+.visited::after { content: "✓ Visité"; }
+.viewed::after { content: "✓ Vue"; }
+
+.link-item {
+    display: flex;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    cursor: pointer;
+}
+
+.local-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.local-card {
+    background: var(--card);
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+}
+
+.media-container { height: 260px; background: #000; overflow: hidden; }
+.media-container img, .media-container video { width: 100%; height: 100%; object-fit: cover; }
+
+.info { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
+.grok-link-btn {
+    background: #00ccff; color: #000 !important; border: none; border-radius: 8px;
+    padding: 10px; font-weight: 800; margin-top: auto; cursor: pointer; text-align: center;
+    text-decoration: none; font-size: 0.8rem;
+}
+
+/* Modales et Lightbox */
+.modal-overlay, #lightbox, #sharePopup {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+    display: none; align-items: center; justify-content: center; z-index: 3000;
+}
+.modal-container {
+    background: var(--card); border: 1px solid var(--border);
+    width: 90%; max-width: 800px; max-height: 85vh; border-radius: 20px;
+    padding: 20px; display: flex; flex-direction: column; overflow: hidden;
+}
+.close-btn, .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 2.5rem; cursor: pointer; }
+.nav-btn {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.1); color: white; border: none;
+    font-size: 3rem; padding: 20px; cursor: pointer; border-radius: 50%; width: 80px; height: 80px;
+}
+.prev-btn { left: 20px; }
+.next-btn { right: 20px; }
+
+#lightboxContent img, #lightboxContent video { max-width: 90vw; max-height: 80vh; border-radius: 8px; }
+#lightboxUrlItem { position: absolute; bottom: 75px; text-align: center; width: 100%; }
+#lightboxCounter { position: absolute; bottom: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
+
+.popup-content { background: var(--card); padding: 40px; border-radius: 24px; text-align: center; border: 1px solid var(--border); max-width: 400px; }
+#loadingStatus { display: none; text-align: center; padding: 20px; font-weight: bold; color: var(--accent-hover); }
+
+.session-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 15px; }
+.session-table th { background: rgba(255,255,255,0.05); padding: 10px; text-align: left; }
+.session-table td { padding: 10px; border-bottom: 1px solid var(--border); }
