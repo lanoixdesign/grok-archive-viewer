@@ -11,26 +11,29 @@ Lorsqu'un utilisateur télécharge son archive Grok, il se retrouve face à un e
 
 ### 👻 Retrouver les "Archives Fantômes"
 À son lancement, l'interface de Grok ne permettait pas de supprimer définitivement les posts ; ils restaient stockés dans la base de données même après avoir été retirés des favoris. 
+
 Cet outil vous permet de :
 1. **Exhumer l'invisible** : Retrouver les liens directs de tous les posts "engloutis" qui n'apparaissent plus dans votre historique officiel.
 2. **Nettoyage Chirurgical** : Identifier précisément ces contenus pour pouvoir les supprimer via les nouvelles options de Grok.
 
-> **💡 Conseil d'utilisation :** Pour une efficacité maximale, utilisez l'application sur le **même navigateur** où votre session Grok est active. Cela vous permet de cliquer sur un lien et d'arriver directement sur la page de suppression du post sur le site officiel de Grok.
+> **💡 La "Puissance" de l'outil :** Pour une efficacité maximale, utilisez l'application sur le **même navigateur** où votre session Grok est active. Cela vous permet de cliquer sur un lien et d'arriver directement sur la page de suppression du post sur le site officiel de Grok sans reconnexion.
 
 ## 🚀 Fonctionnalités
 
 * **Visualisation Instantanée** : Transforme les fichiers JSON illisibles en une galerie élégante (Images/Vidéos).
-* **Suppression Groupée** : Sélectionnez et supprimez définitivement les dossiers d'images de votre ordinateur en un clic.
-* **Interface Mobile-Friendly** : Contrôles et cases à cocher agrandis pour une utilisation tactile fluide.
+* **Suppression Groupée** : Sélectionnez et supprimez définitivement les dossiers d'images de votre ordinateur en un clic (via l'API *File System Access*).
+* **Interface Mobile-Friendly** : Contrôles et cases à cocher agrandis pour une utilisation tactile fluide sur smartphone.
 * **Système de Suivi** : Distinction visuelle entre les médias **"Vus"** (dans la lightbox) et **"Visités"** (lien Grok cliqué).
 * **Confidentialité Totale** : Fonctionnement 100% local, aucune donnée n'est envoyée vers un serveur tiers.
 
 ## 🛠️ Utilisation Rapide
 
 1. **Connectez-vous à votre compte Grok** sur votre navigateur habituel.
-2. Téléchargez et décompressez votre archive Grok (.zip) >> [Grok Data](https://accounts.x.ai/data)
-4. Ouvrez [Grok Imagine Archive](https://lanoixdesign.github.io/grok-archive-viewer/).
-5. Chargez le dossier racine de votre archive et explorez vos créations !
+2. **Demandez votre archive** : Allez sur [Grok Data](https://accounts.x.ai/data) pour solliciter le téléchargement de vos données.
+3. **Récupérez le fichier** : Cliquez sur le lien de téléchargement (**Download Data**) reçu dans la boîte mail associée à votre compte Grok.
+4. **Préparez l'archive** : Décompressez le fichier `.zip` sur votre ordinateur.
+5. **Lancez l'outil** : Ouvrez [Grok Imagine Archive](https://lanoixdesign.github.io/grok-archive-viewer/).
+6. **Explorez** : Chargez le dossier racine de votre archive décompressée et gérez vos créations !
 
 ## ⚖️ Licence
 
