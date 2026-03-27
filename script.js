@@ -279,69 +279,62 @@ function renderGallery() {
     const cloudFragment = document.createDocumentFragment();
     const localFragment = document.createDocumentFragment();
 
-    window.downloadPrompt = function(promptText, id) {
-    const blob = new Blob([promptText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `prompt-${id}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
-
     filtered.forEach((asset, idx) => {
         const isV = visitedSet.has(asset.url);
         const card = document.createElement('div');
         card.className = `media-card ${isV ? 'visited' : ''}`;
+        
+        // Optimisation RAM : Empêche le rendu complet si hors écran
+        card.style.contentVisibility = 'auto';
+        card.style.containIntrinsicSize = '300px 400px';
+
         const linkedCloud = allAssets.find(item => item.source === 'Cloud' && item.id === asset.id);
         const actionUrl = asset.source === 'Cloud' ? asset.link : (linkedCloud ? linkedCloud.link : null);
         const dateTimeStr = asset.date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         const isVideo = asset.media_type === 'video';
 
-        // AJOUT : La classe 'is-image' est ajoutée uniquement si ce n'est pas une vidéo
-       card.innerHTML = `
-    <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative;">
-        <span class="badge ${asset.source.toLowerCase()}" style="${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">
-            ${isVideo ? 'Vidéo' : 'Photo'}
-        </span>
-        ${isVideo 
-            ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video>
-               <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
-            : `<img src="${asset.url}" 
-                loading="lazy" 
-                style="width:100%;height:100%;object-fit:cover;" 
-                onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" 
-                onerror="window.handleImgError(this)">`}
-    </div>
-    <div class="info">
-        <strong style="display: block; margin-bottom: 5px;">
-            ${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 45)}${asset.prompt.length > 45 ? '...' : ''}
-        </strong>
-        <div style="font-size:0.75rem; color:#888; margin-bottom: 8px;">📅 ${dateTimeStr}</div>
-        
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 12px;" onclick="event.stopPropagation()">
-            <input type="checkbox" data-url="${asset.url}"> Sélectionner
-        </label>
-
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
-            ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
-            
-            <div style="display:flex; gap:5px;">
-                ${asset.source === 'Cloud' ? 
-                    `<button class="btn secondary" style="flex:1; justify-content:center; background:#eee; color:#000; padding: 8px 5px;" onclick="event.stopPropagation(); downloadCloudFile('${asset.url}','${asset.id}','${asset.media_type}')">💾 MÉDIA</button>` 
-                    : ''
-                }
-                <button class="btn secondary" style="flex:1; justify-content:center; background:#fff; color:#000; border:1px solid var(--border); padding: 8px 5px;" 
-                        onclick="event.stopPropagation(); openPromptModal(\`${asset.prompt.replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`, '${asset.id}')">
-                    📝 PROMPT
-                </button>
+        card.innerHTML = `
+            <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative; background: #000;">
+                <span class="badge ${asset.source.toLowerCase()}" style="${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">
+                    ${isVideo ? 'Vidéo' : 'Photo'}
+                </span>
+                ${isVideo 
+                    ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video>
+                       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
+                    : `<img src="${asset.url}" 
+                        loading="lazy" 
+                        width="300" height="250"
+                        style="width:100%;height:100%;object-fit:cover; image-rendering: low-quality;" 
+                        onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" 
+                        onerror="window.handleImgError(this)">`}
             </div>
-        </div>
-    </div>`;
+            <div class="info">
+                <strong style="display: block; margin-bottom: 5px;">
+                    ${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 45)}${asset.prompt.length > 45 ? '...' : ''}
+                </strong>
+                <div style="font-size:0.75rem; color:#888; margin-bottom: 8px;">📅 ${dateTimeStr}</div>
+                
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 12px;" onclick="event.stopPropagation()">
+                    <input type="checkbox" data-url="${asset.url}"> Sélectionner
+                </label>
 
-        // ... (Le reste de votre logique d'événements checkbox, survol et clic reste inchangé)
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+                    ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
+                    
+                    <div style="display:flex; gap:5px;">
+                        ${asset.source === 'Cloud' ? 
+                            `<button class="btn secondary" style="flex:1; justify-content:center; background:#eee; color:#000; padding: 8px 5px;" onclick="event.stopPropagation(); downloadCloudFile('${asset.url}','${asset.id}','${asset.media_type}')">💾 MÉDIA</button>` 
+                            : ''
+                        }
+                        <button class="btn secondary" style="flex:1; justify-content:center; background:#fff; color:#000; border:1px solid var(--border); padding: 8px 5px;" 
+                                onclick="event.stopPropagation(); openPromptModal(\`${asset.prompt.replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`, '${asset.id}')">
+                            📝 PROMPT
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+
+        // Logique Checkbox
         const checkbox = card.querySelector('input[type="checkbox"]');
         if (checkbox) {
             checkbox.addEventListener('change', function() {
@@ -358,6 +351,7 @@ function renderGallery() {
             });
         }
 
+        // Logique Vidéo & Interaction
         let isLongPress = false;
         let touchTimer = null;
 
@@ -375,15 +369,7 @@ function renderGallery() {
             }
         };
 
-        card.onmouseenter = () => {
-            const m = card.querySelector('img, video');
-            // Correction : on ne touche à l'image que si elle n'est pas déjà chargée
-            if (m && m.tagName === 'IMG' && m.src.includes('placehold.co')) {
-                 // Optionnel : re-tenter le chargement si on survole une image en erreur
-            }
-            forcePlayVideo();
-        };
-
+        card.onmouseenter = forcePlayVideo;
         card.onmouseleave = forcePauseVideo;
 
         if (isVideo) {
@@ -412,6 +398,7 @@ function renderGallery() {
     if (jsonLinksEl) jsonLinksEl.appendChild(cloudFragment);
     if (localFilesEl) localFilesEl.appendChild(localFragment);
 
+    // Mise à jour des compteurs
     const localLen = filtered.filter(a => a.source === 'Local').length;
     const cloudLen = filtered.filter(a => a.source === 'Cloud').length;
     
