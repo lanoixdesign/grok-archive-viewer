@@ -464,7 +464,7 @@ window.openLightbox = function(i) {
     const dateTimeStr = a.date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     if(document.getElementById('lightboxCounter')) document.getElementById('lightboxCounter').textContent = `${i + 1} / ${galleryItems.length}`;
     if(document.getElementById('lightboxUrlItem')) {
-        document.getElementById('lightboxUrlItem').innerHTML = `<div style="color:#fff;font-size:0.8rem;margin-bottom:10px">📅 ${dateTimeStr}</div><div style="display:flex;gap:10px;justify-content:center;">${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn outline-btn" style="width:180px">🔗 VOIR SUR GROK</a>` : ''}${a.source === 'Cloud' ? `<button class="btn secondary" style="background:#eee;color:#333!important;width:180px" onclick="downloadCloudFile('${a.url}','${a.id}','${a.media_type}')">💾 TÉLÉCHARGER</button>` : ''}</div>`;
+        document.getElementById('lightboxUrlItem').innerHTML = `<div style="color:#fff;font-size:0.8rem;margin-bottom:10px">📅 ${dateTimeStr}</div><div style="display:flex;gap:10px;justify-content:center;">${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn">🔗 VOIR SUR GROK</a>` : ''}${a.source === 'Cloud' ? `<button class="btn secondary" style="background:#eee;color:#333!important;width:180px" onclick="downloadCloudFile('${a.url}','${a.id}','${a.media_type}')">💾 TÉLÉCHARGER</button>` : ''}</div>`;
     }
     const lightboxEl = document.getElementById('lightbox');
     if(lightboxEl) lightboxEl.style.display = 'flex';
