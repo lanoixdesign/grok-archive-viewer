@@ -31,6 +31,55 @@ body {
     transition: background-color 0.3s, color 0.3s;
 }
 
+#loadingStatus { 
+    display: none; 
+    position: sticky;
+    top: 10px; 
+    z-index: 150;
+    background: var(--card);
+    color: var(--visited);
+    padding: 12px; 
+    text-align: center;
+    font-weight: bold;
+    /*border-radius: 8px;*/
+    max-width: 400px;
+    margin: 0 auto 15px auto;
+    /*box-shadow: 0 4px 15px rgba(0,0,0,0.4);*/
+}
+
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+@media (max-width: 768px) {
+    .header-container { flex-direction: column; gap: 15px; } /* Ajustement Mobile */
+    .header-actions { width: 100%; justify-content: center; flex-wrap: wrap; } /* Ajustement Mobile */
+    .toolbar-group { width: 100%; justify-content: space-between; }
+    .btn { flex-grow: 1; justify-content: center; }
+    .modern-select { flex-grow: 1; }
+}
+
+/* Animation de pulsation uniquement pour les conteneurs d'images */
+@keyframes placeholderPulse {
+    0% { background-color: var(--card); }
+    50% { background-color: var(--border); }
+    100% { background-color: var(--card); }
+}
+
+/* On n'applique l'animation qu'aux conteneurs ayant la classe .is-image */
+.media-container.is-image {
+    background-color: var(--card);
+    animation: placeholderPulse 1.5s infinite ease-in-out;
+}
+
+.media-container img {
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+}
+
+.media-container img.loaded {
+    opacity: 1;
+}
+
 /* ==========================================
    LAYOUT PRINCIPAL & ZONE FIXE
 ========================================== */
@@ -339,13 +388,4 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited)
 .lightbox-footer { position: absolute; bottom: 75px; width: 100%; text-align: center; }
 .lightbox-counter { position: absolute; bottom: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
 
-#loadingStatus { display: none; text-align: center; padding: 15px; background: var(--visited); color: #000; font-weight: bold; border-radius: 8px; margin-bottom: 20px; animation: pulse 1.5s infinite; }
-@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
-@media (max-width: 768px) {
-    .header-container { flex-direction: column; gap: 15px; } /* Ajustement Mobile */
-    .header-actions { width: 100%; justify-content: center; flex-wrap: wrap; } /* Ajustement Mobile */
-    .toolbar-group { width: 100%; justify-content: space-between; }
-    .btn { flex-grow: 1; justify-content: center; }
-    .modern-select { flex-grow: 1; }
-}
