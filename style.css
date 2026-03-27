@@ -71,9 +71,20 @@ body {
     animation: placeholderPulse 1.5s infinite ease-in-out;
 }
 
-.media-container img {
-    opacity: 0;
-    transition: opacity 0.4s ease-in-out;
+/* Ajoute ou modifie ces règles dans ton style.css */
+.media-container img, 
+.media-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Réduit la qualité de rendu pour économiser les ressources GPU/RAM */
+    image-rendering: low-quality; 
+    filter: contrast(95%); /* Un léger filtre réduit parfois la charge de rendu */
+}
+
+.media-card {
+    /* On réduit la taille mémoire des ombres qui sont gourmandes */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
 }
 
 .media-container img.loaded {
