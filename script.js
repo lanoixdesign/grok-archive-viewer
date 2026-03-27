@@ -218,8 +218,8 @@ async function scanDirectory(handle) {
                             const isVideo = p.media_type === 'video';
                             allAssets.push({
                                 id: p.id, prompt: p.original_prompt || 'Généré', 
-                                url: isVideo ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/share-images/${p.id}.jpg`,
-                                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/share-images/${p.id}.jpg` : null,
+                                url: isVideo ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
+                                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
                                 link: p.link, media_type: p.media_type, date: new Date(p.create_time), source: 'Cloud'
                             });
                         }
