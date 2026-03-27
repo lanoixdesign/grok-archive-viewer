@@ -1,0 +1,60 @@
+{
+  "media_posts": [
+    {
+      "id": "31ec5da1-12bc-4cc4-b021-25e2c12a7bc3",
+      "prompt": "Généré",
+      "media_type": "video",
+      "url": "https://imagine-public.x.ai/imagine-public/share-videos/31ec5da1-12bc-4cc4-b021-25e2c12a7bc3.mp4",
+      "date": "2026-03-02T22:39:56.042Z",
+      "link": "https://grok.com/imagine/post/31ec5da1-12bc-4cc4-b021-25e2c12a7bc3"
+    },
+    {
+      "id": "de388d18-0086-4229-8280-9b4401ad86f6",
+      "prompt": "Généré",
+      "media_type": "image",
+      "url": "https://imagine-public.x.ai/imagine-public/share-images/de388d18-0086-4229-8280-9b4401ad86f6.jpg",
+      "date": "2025-11-06T01:01:15.053Z",
+      "link": "https://grok.com/imagine/post/de388d18-0086-4229-8280-9b4401ad86f6"
+    },
+    {
+      "id": "961bce94-e4a0-4c56-9eca-0c41f8d30b83",
+      "prompt": "Généré",
+      "media_type": "video",
+      "url": "https://imagine-public.x.ai/imagine-public/share-videos/961bce94-e4a0-4c56-9eca-0c41f8d30b83.mp4",
+      "date": "2026-03-02T22:39:59.063Z",
+      "link": "https://grok.com/imagine/post/961bce94-e4a0-4c56-9eca-0c41f8d30b83"
+    },
+    {
+      "id": "a1f14ea4-36e1-4c4d-8e84-12c1b15f6f3f",
+      "prompt": "Généré",
+      "media_type": "video",
+      "url": "https://imagine-public.x.ai/imagine-public/share-videos/a1f14ea4-36e1-4c4d-8e84-12c1b15f6f3f.mp4",
+      "date": "2026-03-02T22:40:31.745Z",
+      "link": "https://grok.com/imagine/post/a1f14ea4-36e1-4c4d-8e84-12c1b15f6f3f"
+    },
+    {
+      "id": "aebe32e3-4e24-41c3-826f-7446860715ab",
+      "prompt": "Généré",
+      "media_type": "video",
+      "url": "https://imagine-public.x.ai/imagine-public/share-videos/aebe32e3-4e24-41c3-826f-7446860715ab.mp4",
+      "date": "2026-03-02T22:40:22.565Z",
+      "link": "https://grok.com/imagine/post/aebe32e3-4e24-41c3-826f-7446860715ab"
+    },
+    {
+      "id": "02ebd0f7-e008-443f-9d7e-48bd2b85ae93",
+      "prompt": "Généré",
+      "media_type": "video",
+      "url": "https://imagine-public.x.ai/imagine-public/share-videos/02ebd0f7-e008-443f-9d7e-48bd2b85ae93.mp4",
+      "date": "2026-03-02T22:40:00.696Z",
+      "link": "https://grok.com/imagine/post/02ebd0f7-e008-443f-9d7e-48bd2b85ae93"
+    },
+    {
+      "id": "2ae7424a-daba-4776-81c3-f82a7c651d83",
+      "prompt": "Généré",
+      "media_type": "video",
+      "url": "https://imagine-public.x.ai/imagine-public/share-videos/2ae7424a-daba-4776-81c3-f82a7c651d83.mp4",
+      "date": "2026-03-02T22:40:16.071Z",
+      "link": "https://grok.com/imagine/post/2ae7424a-daba-4776-81c3-f82a7c651d83"
+    }
+  ]
+}
