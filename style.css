@@ -36,14 +36,14 @@ body {
     position: sticky;
     top: 10px; 
     z-index: 150;
-    background: var(--card);
+    background: var(--bg);
     color: var(--visited);
-    padding: 12px; 
+    padding: 12px 12px 0px 12px; 
     text-align: center;
     font-weight: bold;
     border-radius: 8px;
     max-width: 400px;
-    margin: 0 auto 15px auto;
+    margin: 10px auto;
     box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
 
