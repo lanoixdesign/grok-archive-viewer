@@ -26,10 +26,10 @@ Grok conserve souvent dans ses bases de données des créations même après qu'
 ## 🚀 Fonctionnalités Clés
 
 * **Interface Épurée & Rétractable (Nouveau !)** : Un tableau de bord divisé en 3 zones claires et fixé en haut de l'écran. Un bouton "Menu" (`⬆️ / ⬇️`) permet de masquer la barre d'outils pour maximiser l'espace d'affichage de la galerie, idéal pour les mobiles !
+* **Partage & Export de Collections** : Sélectionnez vos meilleures créations et exportez-les au format `.json`. C'est non seulement parfait pour vos sauvegardes, mais c'est aussi un **formidable outil de partage** ! Envoyez votre fichier à vos amis ou à la communauté : ils pourront l'importer dans leur propre outil pour explorer vos prompts, visionner les médias, et télécharger leurs favoris en un clic.
 * **Optimisation Vidéo & RAM** : Les vidéos utilisent le *Lazy Loading*. Un bouton **Autoplay** vous permet de bloquer la lecture automatique pour économiser la mémoire de votre appareil. Si bloquées, les vidéos se lisent uniquement au **survol de la souris** (PC) ou par un **appui long** (Mobile).
 * **Persistance de Session** : Quittez la page et revenez plus tard ! L'outil mémorise votre dossier d'archive et votre historique de navigation (statuts "Visité" et "Vue") grâce à la base de données locale du navigateur (IndexedDB).
-* **Import/Export & Drag & Drop** : Exportez une sélection précise. Plus tard, glissez-déposez simplement ce fichier `.json` sur la page pour restaurer instantanément votre galerie triée.
-* **Opérations par Lots** : Des cases "Tout sélectionner" intelligentes permettent de télécharger des dizaines de photos/vidéos simultanément, ou de nettoyer votre disque dur en supprimant les fichiers locaux inutiles en un clic.
+* **Opérations par Lots** : Des cases "Tout sélectionner" intelligentes permettent de télécharger des dizaines de photos/vidéos simultanément, ou de nettoyer votre disque dur en supprimant les fichiers locaux inutiles.
 * **Confidentialité Totale** : Le script tourne à 100% dans votre navigateur. Aucune donnée n'est envoyée vers un serveur tiers.
 
 ## 🛠️ Guide d'Utilisation (Avec votre propre archive)
