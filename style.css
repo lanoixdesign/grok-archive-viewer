@@ -5,7 +5,8 @@
     --accent: #ffffff;
     --accent-hover: #00ffaa;
     --border: #2a2a35;
-    --visited: #00cc88;
+    --visited: #00cc88; /* Couleur verte pour le statut validé */
+    --cloud: #00bfff;
 }
 
 body.light {
@@ -16,6 +17,7 @@ body.light {
     --accent-hover: #006633;
     --border: #d1d5db;
     --visited: #008866;
+    --cloud: #0077cc;
 }
 
 body {
@@ -122,35 +124,15 @@ select {
 .collapsed .accordion-icon { transform: rotate(-90deg); }
 .hidden { display: none !important; }
 
-/* Items et Cartes */
-.link-item, .local-card { transition: border-color 0.3s, opacity 0.3s; position: relative; }
-.visited, .viewed { border-color: var(--visited) !important; opacity: 0.85; }
-.visited::after, .viewed::after {
-    position: absolute; top: 10px; right: 15px;
-    background: var(--visited); color: #000;
-    padding: 2px 10px; border-radius: 10px; font-size: 0.7rem; font-weight: bold; z-index: 5;
-}
-.visited::after { content: "✓ Visité"; }
-.viewed::after { content: "✓ Vue"; }
-
-.link-item {
-    display: flex;
-    align-items: center;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-    cursor: pointer;
-}
-
-.local-grid {
+/* Grille de médias */
+.media-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 24px;
 }
 
-.local-card {
+/* Cartes de médias */
+.media-card {
     background: var(--card);
     border-radius: 20px;
     overflow: hidden;
@@ -159,16 +141,101 @@ select {
     display: flex;
     flex-direction: column;
     min-height: 400px;
+    transition: border-color 0.3s, opacity 0.3s, transform 0.2s;
+    position: relative;
 }
+.media-card:hover { transform: translateY(-5px); }
+.media-card.visited { border-color: var(--visited) !important; opacity: 0.85; }
+.media-card.viewed { border-color: var(--visited) !important; opacity: 0.9; }
 
-.media-container { height: 260px; background: #000; overflow: hidden; }
+.media-container { height: 260px; background: #000; overflow: hidden; position: relative; }
 .media-container img, .media-container video { width: 100%; height: 100%; object-fit: cover; }
 
+.badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    z-index: 5;
+}
+.badge.cloud { background: var(--cloud); color: white; }
+.badge.local { background: var(--accent); color: var(--bg); }
+
 .info { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
+.info strong { font-size: 0.9rem; line-height: 1.2; }
+
 .grok-link-btn {
-    background: #00ccff; color: #000 !important; border: none; border-radius: 8px;
+    background: var(--cloud); color: #000 !important; border: none; border-radius: 8px;
     padding: 10px; font-weight: 800; margin-top: auto; cursor: pointer; text-align: center;
     text-decoration: none; font-size: 0.8rem;
+}
+
+/* Styles spécifiques pour le suivi des médias */
+.media-card {
+    transition: border-color 0.3s, opacity 0.3s, transform 0.2s;
+    position: relative;
+    border: 1px solid var(--border);
+}
+
+/* État quand le média est visité ou vu */
+.media-card.visited, 
+.media-card.viewed {
+    border-color: var(--visited) !important;
+}
+
+.media-card.visited {
+    opacity: 1; /* Pleine opacité pour les favoris/visités */
+}
+
+.media-card.viewed {
+    opacity: 0.8; /* Légère transparence pour les éléments déjà vus */
+}
+
+/* Création de l'étiquette (Badge de statut) */
+.media-card.visited::after, 
+.media-card.viewed::after {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    z-index: 10;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    pointer-events: none;
+}
+
+/* Contenu et couleurs spécifiques des badges */
+.media-card.visited::after {
+    content: "✓ VISITÉS";
+    background-color: var(--visited);
+    color: #000;
+}
+
+.media-card.viewed::after {
+    content: "👁️ VUE";
+    background-color: var(--accent);
+    color: var(--bg);
+}
+
+/* Priorité au badge Visité si les deux conditions sont remplies */
+.media-card.visited.viewed::after {
+    content: "✓ VISITÉS";
+    background-color: var(--visited);
+}
+
+
+/* Checkbox tactile */
+input[type="checkbox"] {
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    accent-color: var(--visited);
 }
 
 /* Modales et Lightbox */
@@ -200,3 +267,11 @@ select {
 .session-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 15px; }
 .session-table th { background: rgba(255,255,255,0.05); padding: 10px; text-align: left; }
 .session-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+
+@media (max-width: 768px) {
+    .controls { top: 70px; }
+    .media-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .media-card { min-height: 280px; }
+    .media-container { height: 160px; }
+    input[type="checkbox"] { width: 30px; height: 30px; }
+}
