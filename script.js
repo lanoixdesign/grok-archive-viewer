@@ -303,7 +303,7 @@ function renderGallery() {
                 <div style="font-size:0.75rem;color:#888;margin-top:4px;">📅 ${dateTimeStr}</div>
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:5px" onclick="event.stopPropagation()"><input type="checkbox" data-url="${asset.url}"> Sélectionner</label>
                 <div style="display:flex;flex-direction:column;gap:5px;margin-top:auto;">
-                    ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn outline-btn" style="width:100%; justify-content:center;" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
+                    ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
                     ${asset.source === 'Cloud' ? `<button class="btn secondary" style="width:100%; justify-content:center; background:#eee; color:#000;" onclick="event.stopPropagation(); downloadCloudFile('${asset.url}','${asset.id}','${asset.media_type}')">💾 TÉLÉCHARGER</button>` : ''}
                 </div>
             </div>`;
