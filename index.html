@@ -6,51 +6,6 @@
     <title>Grok Imagine Archive</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗄️</text></svg>">
-    <style>
-        /* Optimisation des cases à cocher pour le tactile (Mobile) */
-        input[type="checkbox"] {
-            width: 24px;
-            height: 24px;
-            min-width: 24px;
-            min-height: 24px;
-            cursor: pointer;
-            accent-color: var(--visited);
-            vertical-align: middle;
-            margin-right: 8px;
-        }
-
-        /* Agrandissement de la zone de clic des labels */
-        label {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 0; /* Zone tactile plus large verticalement */
-            cursor: pointer;
-            font-size: 0.9rem;
-            user-select: none;
-        }
-
-        /* Ajustement spécifique pour les éléments de la liste Cloud */
-        .link-item input[type="checkbox"] {
-            margin-left: 15px;
-        }
-
-        /* Tablette et Mobile : encore plus d'espace */
-        @media (max-width: 768px) {
-            input[type="checkbox"] {
-                width: 28px;
-                height: 28px;
-            }
-            .controls {
-                gap: 8px;
-                padding: 12px;
-            }
-            .btn {
-                padding: 10px 18px;
-                font-size: 0.9rem;
-            }
-        }
-    </style>
 </head>
 <body>
     <header><div class="container"><h1>Grok Imagine Archive</h1></div></header>
@@ -74,8 +29,11 @@
             </select>
             
             <button class="btn" id="exportBtn">📤 Exporter</button>
-            <!-- Nouveau bouton de suppression groupée -->
             <button class="btn secondary" id="deleteSelectedBtn" style="color: #ff4444; border-color: #ff4444;">🗑️ Suppr. Sélection</button>
+            
+            <!-- Nouveau bouton pour effacer la session navigateur -->
+            <button class="btn secondary" id="clearSessionBtn" style="color: #ffa500; border-color: #ffa500;">🧹 Effacer Session</button>
+            
             <button class="btn secondary" id="clearBtn" disabled>Effacer Vue</button>
             <button class="btn secondary" id="donBtn">🇫🇷☕️ Café</button>
         </div>
@@ -83,14 +41,18 @@
         <div id="loadingStatus">⏳ Analyse de l'archive en cours...</div>
 
         <div class="accordion-header collapsed" onclick="toggleAccordion('jsonSection', this)">
-            <h2>🔗 Liens Cloud (JSON) <small id="numberLink2">0</small></h2><span class="accordion-icon">▼</span>
+            <h2>🔗 Liens Cloud (Archives Fantômes) <small id="numberLink2">0</small></h2><span class="accordion-icon">▼</span>
         </div>
-        <div id="jsonSection" class="accordion-content hidden"><div id="jsonLinks"></div></div>
+        <div id="jsonSection" class="accordion-content hidden">
+            <div class="media-grid" id="jsonLinks"></div>
+        </div>
 
         <div class="accordion-header collapsed" onclick="toggleAccordion('localSection', this)">
             <h2>📁 Fichiers Locaux (Asset Server) <small id="numberImg2">0</small></h2><span class="accordion-icon">▼</span>
         </div>
-        <div id="localSection" class="accordion-content hidden"><div class="local-grid" id="localFiles"></div></div>
+        <div id="localSection" class="accordion-content hidden">
+            <div class="media-grid" id="localFiles"></div>
+        </div>
     </div>
 
     <!-- Modale Profil -->
