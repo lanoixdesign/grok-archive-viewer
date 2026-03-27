@@ -248,9 +248,6 @@ async function scanDirectory(handle) {
     }
 }
 
-// ==========================================
-// RENDU DE LA GALERIE (AVEC FRAGMENT DOM)
-// ==========================================
 function renderGallery() {
     document.querySelectorAll('.select-all-cb').forEach(cb => cb.checked = false);
 
@@ -291,12 +288,17 @@ function renderGallery() {
         const dateTimeStr = asset.date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         const isVideo = asset.media_type === 'video';
 
+        // AJOUT : La classe 'is-image' est ajoutée uniquement si ce n'est pas une vidéo
         card.innerHTML = `
-            <div class="media-container" style="position: relative;">
+            <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative;">
                 <span class="badge ${asset.source.toLowerCase()}" style="${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">${isVideo ? 'Vidéo' : 'Photo'}</span>
                 ${isVideo 
                     ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
-                    : `<img src="${asset.url}" data-original="${asset.url}" loading="lazy" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://placehold.co/400x300?text=Indisponible'">`}
+                    : `<img src="${asset.url}" 
+                        loading="lazy" 
+                        style="width:100%;height:100%;object-fit:cover;" 
+                        onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" 
+                        onerror="window.handleImgError(this)">`}
             </div>
             <div class="info">
                 <strong>${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 50)}...</strong>
@@ -308,6 +310,7 @@ function renderGallery() {
                 </div>
             </div>`;
 
+        // ... (Le reste de votre logique d'événements checkbox, survol et clic reste inchangé)
         const checkbox = card.querySelector('input[type="checkbox"]');
         if (checkbox) {
             checkbox.addEventListener('change', function() {
@@ -343,7 +346,10 @@ function renderGallery() {
 
         card.onmouseenter = () => {
             const m = card.querySelector('img, video');
-            if (m && m.tagName === 'IMG' && m.src.includes('placehold.co')) m.src = m.dataset.original;
+            // Correction : on ne touche à l'image que si elle n'est pas déjà chargée
+            if (m && m.tagName === 'IMG' && m.src.includes('placehold.co')) {
+                 // Optionnel : re-tenter le chargement si on survole une image en erreur
+            }
             forcePlayVideo();
         };
 
@@ -384,6 +390,17 @@ function renderGallery() {
     if(document.getElementById('numberLink2')) document.getElementById('numberLink2').textContent = cloudLen;
     if(document.getElementById('clearBtn')) document.getElementById('clearBtn').disabled = allAssets.length === 0;
 }
+
+// N'oubliez pas d'ajouter cette fonction globale en dehors de renderGallery
+window.handleImgError = function(img) {
+    setTimeout(() => {
+        if (img && img.naturalWidth === 0) {
+            img.src = 'https://placehold.co/400x300?text=Lien+Expire';
+            img.classList.add('loaded');
+            if (img.parentElement) img.parentElement.style.animation = 'none';
+        }
+    }, 1500);
+};
 
 // ==========================================
 // TÉLÉCHARGEMENT & SUPPRESSION
@@ -655,6 +672,8 @@ autoPlayBtn.addEventListener('click', () => {
     });
 });
 
+
+
 window.onclick = (e) => { 
     if(e.target.id === 'profileModal' || e.target.classList.contains('modal-overlay')) closeProfileModal();
     if(e.target.id === 'lightbox') closeLightbox();
@@ -672,4 +691,39 @@ document.addEventListener('keydown', (e) => {
 
 window.downloadFile = function() { 
     if (currentExportData) { const a = document.createElement('a'); a.href = currentExportData.url; a.download = currentExportData.name; a.click(); }
+};
+
+window.handleImgError = function(img) {
+    // Si on a déjà tout tenté (images -> share-images -> échec final)
+    if (img.dataset.failed) return;
+
+    // Tentative 1 : Basculer de /images/ vers /share-images/
+    if (!img.dataset.triedShare) {
+        let newUrl = img.src.replace('/imagine-public/images/', '/imagine-public/share-images/');
+        
+        if (newUrl !== img.src) {
+            img.dataset.triedShare = "true";
+            
+            // On teste la nouvelle URL en arrière-plan avant de l'assigner
+            let tester = new Image();
+            tester.onload = () => {
+                img.src = newUrl;
+                img.classList.add('loaded');
+                if (img.parentElement) img.parentElement.style.animation = 'none';
+            };
+            tester.onerror = () => {
+                // Si même le share-images échoue, on marque comme échec temporaire
+                img.dataset.failed = "true";
+                img.src = 'https://placehold.co/400x300?text=Lien+Expire';
+                img.classList.add('loaded');
+                if (img.parentElement) img.parentElement.style.animation = 'none';
+            };
+            tester.src = newUrl;
+        } else {
+            // Si l'URL n'était pas transformable, on affiche l'erreur
+            img.dataset.failed = "true";
+            img.src = 'https://placehold.co/400x300?text=Indisponible';
+            img.classList.add('loaded');
+        }
+    }
 };
