@@ -156,7 +156,8 @@ body.light .sticky-top-area {
 .grok-link-btn {
     background: var(--cloud); color: #000 !important; border: none; border-radius: 8px;
     padding: 10px; font-weight: 800;  cursor: pointer; text-align: center;
-    text-decoration: none; 
+    text-decoration: none; display: inline;
+    padding: 10px 20px;
 }
 
 .primary-btn { background: var(--accent); color: var(--bg); }
