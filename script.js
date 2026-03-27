@@ -279,6 +279,18 @@ function renderGallery() {
     const cloudFragment = document.createDocumentFragment();
     const localFragment = document.createDocumentFragment();
 
+    window.downloadPrompt = function(promptText, id) {
+    const blob = new Blob([promptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prompt-${id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
     filtered.forEach((asset, idx) => {
         const isV = visitedSet.has(asset.url);
         const card = document.createElement('div');
@@ -289,26 +301,45 @@ function renderGallery() {
         const isVideo = asset.media_type === 'video';
 
         // AJOUT : La classe 'is-image' est ajoutée uniquement si ce n'est pas une vidéo
-        card.innerHTML = `
-            <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative;">
-                <span class="badge ${asset.source.toLowerCase()}" style="${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">${isVideo ? 'Vidéo' : 'Photo'}</span>
-                ${isVideo 
-                    ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
-                    : `<img src="${asset.url}" 
-                        loading="lazy" 
-                        style="width:100%;height:100%;object-fit:cover;" 
-                        onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" 
-                        onerror="window.handleImgError(this)">`}
+       card.innerHTML = `
+    <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative;">
+        <span class="badge ${asset.source.toLowerCase()}" style="${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">
+            ${isVideo ? 'Vidéo' : 'Photo'}
+        </span>
+        ${isVideo 
+            ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video>
+               <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
+            : `<img src="${asset.url}" 
+                loading="lazy" 
+                style="width:100%;height:100%;object-fit:cover;" 
+                onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" 
+                onerror="window.handleImgError(this)">`}
+    </div>
+    <div class="info">
+        <strong style="display: block; margin-bottom: 5px;">
+            ${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 45)}${asset.prompt.length > 45 ? '...' : ''}
+        </strong>
+        <div style="font-size:0.75rem; color:#888; margin-bottom: 8px;">📅 ${dateTimeStr}</div>
+        
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 12px;" onclick="event.stopPropagation()">
+            <input type="checkbox" data-url="${asset.url}"> Sélectionner
+        </label>
+
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+            ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
+            
+            <div style="display:flex; gap:5px;">
+                ${asset.source === 'Cloud' ? 
+                    `<button class="btn secondary" style="flex:1; justify-content:center; background:#eee; color:#000; padding: 8px 5px;" onclick="event.stopPropagation(); downloadCloudFile('${asset.url}','${asset.id}','${asset.media_type}')">💾 MÉDIA</button>` 
+                    : ''
+                }
+                <button class="btn secondary" style="flex:1; justify-content:center; background:#fff; color:#000; border:1px solid var(--border); padding: 8px 5px;" 
+                        onclick="event.stopPropagation(); openPromptModal(\`${asset.prompt.replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`, '${asset.id}')">
+                    📝 PROMPT
+                </button>
             </div>
-            <div class="info">
-                <strong>${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 50)}...</strong>
-                <div style="font-size:0.75rem;color:#888;margin-top:4px;">📅 ${dateTimeStr}</div>
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:5px" onclick="event.stopPropagation()"><input type="checkbox" data-url="${asset.url}"> Sélectionner</label>
-                <div style="display:flex;flex-direction:column;gap:5px;margin-top:auto;">
-                    ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
-                    ${asset.source === 'Cloud' ? `<button class="btn secondary" style="width:100%; justify-content:center; background:#eee; color:#000;" onclick="event.stopPropagation(); downloadCloudFile('${asset.url}','${asset.id}','${asset.media_type}')">💾 TÉLÉCHARGER</button>` : ''}
-                </div>
-            </div>`;
+        </div>
+    </div>`;
 
         // ... (Le reste de votre logique d'événements checkbox, survol et clic reste inchangé)
         const checkbox = card.querySelector('input[type="checkbox"]');
@@ -726,4 +757,59 @@ window.handleImgError = function(img) {
             img.classList.add('loaded');
         }
     }
+};
+
+// ==========================================
+// GESTION DE LA MODALE PROMPT
+// ==========================================
+
+// Variable pour stocker temporairement les données du prompt en cours de lecture
+let currentPromptData = { text: '', id: '' };
+
+window.openPromptModal = function(promptText, id) {
+    currentPromptData = { text: promptText, id: id };
+    const modalText = document.getElementById('fullPromptText');
+    const modal = document.getElementById('promptModal');
+    
+    if (modalText && modal) {
+        // On utilise textContent pour éviter toute interprétation de code HTML dans le prompt
+        modalText.textContent = promptText; 
+        modal.style.display = 'flex';
+    }
+};
+
+window.closePromptModal = function() {
+    const modal = document.getElementById('promptModal');
+    if (modal) modal.style.display = 'none';
+};
+
+// Liaison du bouton de téléchargement situé à l'intérieur de la modale
+document.addEventListener('DOMContentLoaded', () => {
+    const downloadBtn = document.getElementById('downloadPromptConfirmBtn');
+    if (downloadBtn) {
+        downloadBtn.onclick = () => {
+            if (currentPromptData.text) {
+                window.downloadPrompt(currentPromptData.text, currentPromptData.id);
+            }
+        };
+    }
+});
+
+// Ajout de la fermeture de la modale prompt lors d'un clic à l'extérieur
+const originalOnClick = window.onclick;
+window.onclick = (e) => {
+    if (originalOnClick) originalOnClick(e);
+    if (e.target.id === 'promptModal') closePromptModal();
+};
+
+window.downloadPrompt = function(promptText, id) {
+    const blob = new Blob([promptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prompt-grok-${id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };
