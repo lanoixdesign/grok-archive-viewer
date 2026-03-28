@@ -44,7 +44,7 @@ body {
     border-radius: 8px;
     max-width: 400px;
     margin: 10px auto;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    /*box-shadow: 0 4px 15px rgba(0,0,0,0.4);*/
 }
 
 
@@ -189,7 +189,6 @@ body.light .sticky-top-area {
 }
 
 /* --- (Gardez tout le reste de votre CSS tel quel) --- */
-
 .toolbar-group {
     display: flex;
     gap: 10px;
@@ -235,6 +234,15 @@ body.light .sticky-top-area {
 .outline-btn { border: 1px dashed var(--border); opacity: 0.7; }
 .outline-btn:hover:not(:disabled) { opacity: 1; border-color: var(--text); }
 .outline-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.exportjson-btn {    
+    background: #f0f8ff00;
+    border: 1px dashed green;
+    color: var(--visited);
+    font-weight: 500;
+
+}
+.exportjson-btn:hover { border-color: var(--accent); }
 
 /* Boutons icônes de l'en-tête */
 .icon-btn {
@@ -283,6 +291,24 @@ body.light .sticky-top-area {
     transition: 0.2s;
 }
 .nav-anchor-btn:hover { border-color: var(--accent); }
+
+/* État visuel du bouton actif */
+.nav-anchor-btn.active {
+    background-color: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+/* On ajuste la couleur du petit badge quand le bouton est actif pour qu'il reste lisible */
+.nav-anchor-btn.active .count-badge {
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--bg);
+}
+
+body.light .nav-anchor-btn.active .count-badge {
+    background: rgba(255, 255, 255, 0.4);
+    color: var(--bg);
+}
 
 .count-badge {
     background: rgba(255,255,255,0.1);
@@ -400,3 +426,64 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited)
 .lightbox-counter { position: absolute; bottom: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
 
 
+/* ==========================================
+   MODE COMPACT
+========================================== */
+.media-grid.compact {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.media-grid.compact .media-card {
+    border-radius: 8px;
+}
+
+.media-grid.compact .media-container {
+    height: 100px;
+}
+
+.media-grid.compact .info {
+    display: none !important; /* Cache tout le texte, les boutons et la checkbox */
+}
+
+.media-grid.compact .badge {
+    transform: scale(0.7); /* Réduit un peu la taille des badges 'Vidéo' / 'Photo' */
+    transform-origin: top left;
+}
+
+/* Nettoyage des badges en mode compact */
+.media-grid.compact .warning-text {
+    display: none; /* Cache le texte "Archive Latente" */
+}
+
+.media-grid.compact .type-badge {
+    display: none; /* Cache "Photo/Vidéo" pour ne laisser que la place au ⚠️ */
+}
+
+.media-grid.compact .warning-badge {
+    padding: 2px 5px; /* Rend la bulle du ⚠️ toute petite */
+    font-size: 14px;  /* Ajuste la taille de l'emoji */
+}
+
+
+/* ==========================================
+   MARQUEUR DE SCROLL
+========================================== */
+.scroll-marker {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); 
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 20px; border-radius: 30px; font-size: 0.9rem; font-weight: bold;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 9999;
+    transition: transform 0.3s, background 0.2s; display: flex; align-items: center;
+}
+.scroll-marker.visible { transform: translateX(-50%) translateY(0); }
+
+.scroll-marker.visible {
+    transform: translateX(-50%) translateY(0); /* Apparaît */
+}
+
+.scroll-marker:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
