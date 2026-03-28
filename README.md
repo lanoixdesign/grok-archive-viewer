@@ -37,7 +37,7 @@ Il est tout à fait normal de retrouver dans votre archive des images que vous p
 * **Navigation Très Haute Performance (Infinite Scroll) :** Conçu pour gérer des milliers de fichiers sans ralentissement. L'outil utilise le chargement différé (*Lazy Loading*) et un défilement infini optimisé par paquets, préservant la mémoire vive (RAM) de votre appareil.
 * **Marqueur de Défilement Dynamique :** Repérez-vous facilement dans vos archives massives grâce à une bulle intelligente indiquant votre progression (%) et la date précise des médias affichés au centre de votre écran.
 * **Mode Compact & Actions par Lots :** Basculez en un clic sur une vue "vignettes" pour une supervision globale. Sélectionnez de multiples fichiers pour générer des archives ZIP locales à la volée, ou ouvrir plusieurs liens Cloud simultanément.
-* **Gestion Chirurgicale des Méta-données :** Modale de lecture avancée permettant de consulter l'intégralité de vos "prompts" (commandes textuelles) originaux, avec possibilité d'exportation sécurisée au format `.txt`.
+* **Gestion des Méta-données :** Modale de lecture avancée permettant de consulter l'intégralité de vos "prompts" (commandes textuelles) originaux, avec possibilité d'exportation sécurisée au format `.txt`.
 * **Résilience des Liens :** Système de "fallback" (repli) automatique. Si une image Cloud semble avoir expiré de son serveur principal, l'outil tente automatiquement de la récupérer via les serveurs de partage secondaires avant de la déclarer morte.
 * **Souveraineté et Sécurité :** Traitement 100 % local (*Client-side*). Aucune donnée, aucune image, ni aucun identifiant ne transite par un serveur tiers.
 
