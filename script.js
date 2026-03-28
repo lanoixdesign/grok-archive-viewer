@@ -792,7 +792,7 @@ window.downloadPrompt = function(promptText, id) {
 };
 
 // ==========================================
-// LIGHTBOX & MODALES
+// LIGHTBOX AMÉLIORÉE AVEC ACTIONS
 // ==========================================
 function openLightbox(index) {
     currentLightboxIndex = index;
@@ -800,29 +800,28 @@ function openLightbox(index) {
     if (!asset) return;
 
     const lightbox = document.getElementById('lightbox');
+    const content = document.getElementById('lightboxContent'); // ID corrigé (C majuscule)
     
-    // 1. CORRECTION ICI : lightboxContent (majuscule) au lieu de lightbox-content
-    const content = document.getElementById('lightboxContent'); 
-    
-    // On vide le contenu précédent
+    // 1. Nettoyage du contenu précédent
     if (content) content.innerHTML = '';
 
+    // 2. Rendu du média (Image ou Vidéo)
     if (asset.media_type === 'video') {
         const video = document.createElement('video');
-        video.src = asset.url; // Utilise l'URL (potentiellement corrigée)
+        video.src = asset.url;
         video.controls = true;
         video.autoplay = true;
         video.style.maxWidth = '100%';
-        video.style.maxHeight = '90vh';
+        video.style.maxHeight = '85vh'; // On laisse un peu plus de place pour la toolbar
         if (content) content.appendChild(video);
     } else {
         const img = document.createElement('img');
-        img.src = asset.url; // Utilise l'URL (potentiellement corrigée)
+        img.src = asset.url;
         img.style.maxWidth = '100%';
-        img.style.maxHeight = '90vh';
+        img.style.maxHeight = '85vh'; // On laisse un peu plus de place pour la toolbar
         img.style.objectFit = 'contain';
         
-        // Sécurité supplémentaire : si l'image de la lightbox échoue aussi
+        // Fallback automatique si l'image expire
         img.onerror = () => {
             if (img.src.includes('/images/')) {
                 img.src = img.src.replace('/images/', '/share-images/');
@@ -832,10 +831,91 @@ function openLightbox(index) {
         if (content) content.appendChild(img);
     }
 
-    // 2. CORRECTION ICI : Ton HTML utilise l'ID 'lightboxUrlItem' pour le texte du bas
-    const caption = document.getElementById('lightboxUrlItem');
-    if (caption) caption.textContent = asset.prompt;
+    // 3. Construction de la barre d'outils (Footer)
+    const footer = document.getElementById('lightboxUrlItem');
+    if (footer) {
+        footer.innerHTML = ''; // On vide le texte simple précédent
+        
+        // Configuration du style du footer pour accueillir les boutons
+        footer.style.display = 'flex';
+        footer.style.flexDirection = 'column';
+        footer.style.alignItems = 'center';
+        footer.style.gap = '10px';
+        footer.style.padding = '15px';
+        footer.style.background = 'rgba(0,0,0,0.7)';
+        footer.style.borderRadius = '12px';
+        footer.style.maxWidth = '80%';
+        footer.style.margin = '0 auto';
+        footer.style.bottom = '60px'; // Ajustement de la position
 
+        // A. Le texte du Prompt
+        const promptText = document.createElement('p');
+        promptText.style.margin = '0';
+        promptText.style.color = '#fff';
+        promptText.style.fontSize = '0.9rem';
+        promptText.style.lineHeight = '1.4';
+        promptText.style.whiteSpace = 'pre-wrap'; // Garde les retours à la ligne
+        promptText.style.textAlign = 'center';
+        promptText.textContent = asset.prompt;
+        footer.appendChild(promptText);
+
+        // B. Conteneur des Boutons d'action
+        const actionBtns = document.createElement('div');
+        actionBtns.style.display = 'flex';
+        actionBtns.style.gap = '10px';
+        actionBtns.style.marginTop = '5px';
+        footer.appendChild(actionBtns);
+
+        // Bouton 1 : Lien Grok (si disponible)
+        if (asset.link) {
+            const linkBtn = document.createElement('a');
+            linkBtn.href = asset.link;
+            linkBtn.target = '_blank';
+            // On réutilise tes classes CSS existantes
+            linkBtn.className = 'btn grok-link-btn'; 
+            linkBtn.style.padding = '8px 15px';
+            linkBtn.style.fontSize = '0.8rem';
+            linkBtn.innerHTML = '🔗 VOIR SUR GROK';
+            // Important : empêche la lightbox de se fermer au clic
+            linkBtn.onclick = (e) => e.stopPropagation(); 
+            actionBtns.appendChild(linkBtn);
+        }
+
+        // Bouton 2 : Copier le Prompt
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn secondary outline-btn';
+        copyBtn.style.padding = '8px 15px';
+        copyBtn.style.fontSize = '0.8rem';
+        copyBtn.style.borderColor = '#fff';
+        copyBtn.style.color = '#fff';
+        copyBtn.innerHTML = '📋 COPIER PROMPT';
+        
+        copyBtn.onclick = (e) => {
+            e.stopPropagation(); // Empêche la fermeture de la lightbox
+            
+            // Utilisation de l'API Clipboard moderne
+            navigator.clipboard.writeText(asset.prompt).then(() => {
+                // Feedback visuel temporaire
+                copyBtn.innerHTML = '✅ COPIÉ !';
+                copyBtn.style.background = 'var(--visited)';
+                copyBtn.style.color = '#000';
+                copyBtn.style.borderColor = 'var(--visited)';
+                
+                setTimeout(() => {
+                    copyBtn.innerHTML = '📋 COPIER PROMPT';
+                    copyBtn.style.background = 'transparent';
+                    copyBtn.style.color = '#fff';
+                    copyBtn.style.borderColor = '#fff';
+                }, 2000);
+            }).catch(err => {
+                console.error('Erreur de copie:', err);
+                copyBtn.innerHTML = '❌ ÉCHEC';
+            });
+        };
+        actionBtns.appendChild(copyBtn);
+    }
+
+    // 4. Affichage de la lightbox
     if (lightbox) lightbox.style.display = 'flex';
 }
 
