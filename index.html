@@ -34,18 +34,20 @@
             <div class="toolbar primary-toolbar">
                 <div class="toolbar-group data-actions">
                     <button class="btn primary-btn" id="loadArchiveBtn">🗄️ Charger Dossier</button>
-                    <button class="btn secondary" id="importJsonBtn">📂 Importer JSON</button>
+                    <button class="btn primary-btn" id="importJsonBtn">📂 Importer JSON</button>
                     <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
-                    <button class="btn action-btn" id="exportBtn">📤 Exporter Sélection</button>
+                    <button class="btn exportjson-btn" id="exportBtn">📤 Exporter Sélection</button>
                 </div>
+                <button class="btn danger-btn" style="font-weight: 500; border:1px dashed;" id="deleteSelectedBtn" title="Supprimer les fichiers locaux sélectionnés">🗑️ Supp. Fichier</button>
             </div>
 
             <div class="toolbar filter-toolbar">
                 <div class="toolbar-group nav-group">
-                    <button class="nav-anchor-btn" onclick="scrollToSection('jsonSection')">🔗 Cloud <span class="count-badge" id="numberLink">0</span></button>
-                    <button class="nav-anchor-btn" onclick="scrollToSection('localSection')">📁 Local <span class="count-badge" id="numberImg">0</span></button>
+                    <button class="nav-anchor-btn active" onclick="scrollToSection('jsonSection', this)">🔗 Cloud <span class="count-badge" id="numberLink">0</span></button>
+                    <button class="nav-anchor-btn" onclick="scrollToSection('linkedLocalSection', this)">🔄 Liés <span class="count-badge" id="numberLinkedLocalTop">0</span></button>
+                    <button class="nav-anchor-btn" onclick="scrollToSection('localSection', this)">📁 Orphelins <span class="count-badge" id="numberImg">0</span></button>
                 </div>
-                
+                            
                 <div class="toolbar-group sort-group">
                     <select id="sortType" class="modern-select">
                         <option value="all">Tous les médias</option>
@@ -59,13 +61,14 @@
                 </div>
 
                 <div class="toolbar-group danger-actions">
-                    <button class="btn danger-btn" id="deleteSelectedBtn" title="Supprimer les fichiers locaux sélectionnés">🗑️ Suppr. Sélection</button>
-                    <button class="btn secondary outline-btn" id="clearBtn" disabled title="Effacer l'affichage actuel">Effacer Vue</button>
+                    <button class="icon-btn" id="compactBtn" title="Activer/Désactiver la vue compacte" onclick="toggleCompactMode()" style="width: auto; padding: 0 15px; border-radius: 20px;">⏹️ Compact</button>
+                    <!--button class="btn secondary outline-btn" id="clearBtn" disabled title="Effacer l'affichage actuel">Effacer Vue</button-->
                 </div>
+
             </div>
         </div> 
-<div id="loadingStatus">⏳ Analyse de l'archive en cours...</div>
-    </div> <!-- FIN DE LA ZONE FIXE -->
+    <div id="loadingStatus">⏳ Analyse de l'archive en cours...</div>
+</div> <!-- FIN DE LA ZONE FIXE -->
 
 
 
@@ -75,15 +78,22 @@
 
         <!-- ACCORDÉONS DE LA GALERIE -->
 
-        <div class="accordion-header collapsed" onclick="toggleAccordion('jsonSection', this)">
-            <h2>🔗 Liens Cloud (Archives Fantômes) <span class="count-badge" id="numberLink2">0</span></h2><span class="accordion-icon">▼</span>
+    <div class="accordion-header collapsed" onclick="toggleAccordion('jsonSection', this)">
+            <h2>🔗 Liens Cloud (soft Deleted) <span class="count-badge" id="numberLink2">0</span></h2><span class="accordion-icon">▼</span>
         </div>
         <div id="jsonSection" class="accordion-content hidden">
             <div class="media-grid" id="jsonLinks"></div>
         </div>
 
+        <div class="accordion-header collapsed" onclick="toggleAccordion('linkedLocalSection', this)">
+            <h2>🔄 Fichiers Locaux (Liés au Cloud) <span class="count-badge" id="numberLinkedLocal">0</span></h2><span class="accordion-icon">▼</span>
+        </div>
+        <div id="linkedLocalSection" class="accordion-content hidden">
+            <div class="media-grid" id="linkedLocalFiles"></div>
+        </div>
+
         <div class="accordion-header collapsed" onclick="toggleAccordion('localSection', this)">
-            <h2>📁 Fichiers Locaux (Asset Server) <span class="count-badge" id="numberImg2">0</span></h2><span class="accordion-icon">▼</span>
+            <h2>📁 Fichiers Locaux (Orphelins) <span class="count-badge" id="numberImg2">0</span></h2><span class="accordion-icon">▼</span>
         </div>
         <div id="localSection" class="accordion-content hidden">
             <div class="media-grid" id="localFiles"></div>
@@ -112,12 +122,12 @@
     </div>
 
     <!-- Lightbox -->
-    <div id="lightbox">
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
         <span class="close-btn" onclick="closeLightbox()">×</span>
-        <button class="nav-btn prev-btn" id="prevBtn">‹</button>
-        <div id="lightboxContent"></div>
-        <button class="nav-btn next-btn" id="nextBtn">›</button>
-        <div id="lightboxUrlItem" class="lightbox-footer"></div>
+        <button class="nav-btn prev-btn" id="prevBtn" onclick="event.stopPropagation(); prevMedia()">‹</button>
+        <div id="lightboxContent" onclick="event.stopPropagation()"></div>
+        <button class="nav-btn next-btn" id="nextBtn" onclick="event.stopPropagation(); nextMedia()">›</button>
+        <div id="lightboxUrlItem" class="lightbox-footer" onclick="event.stopPropagation()"></div>
         <div id="lightboxCounter" class="lightbox-counter"></div>
     </div>
 
@@ -132,27 +142,38 @@
     
 <!-- Popup prompt modal -->
     <div id="promptModal" class="modal-overlay">
-    <div class="modal-container" style="max-width: 500px;">
-        <header class="modal-header" style="padding: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0;">📝 Lecture du Prompt</h3>
-            <span class="close-modal" onclick="closePromptModal()">×</span>
-        </header>
-        <div class="modal-content" style="padding: 20px;">
-            <div id="fullPromptText" style="background: rgba(0,0,0,0.1); padding: 15px; border-radius: 8px; font-size: 0.95rem; line-height: 1.5; max-height: 300px; overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--border);">
+        <div class="modal-container" style="max-width: 500px;">
+            <header class="modal-header" style="padding: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">📝 Lecture du Prompt</h3>
+                <span class="close-modal" onclick="closePromptModal()">×</span>
+            </header>
+            <div class="modal-content" style="padding: 20px;">
+                <div id="fullPromptText" style="background: rgba(0,0,0,0.1); padding: 15px; border-radius: 8px; font-size: 0.95rem; line-height: 1.5; max-height: 300px; overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--border);">
+                    </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button id="downloadPromptConfirmBtn" class="btn action-btn" style="flex: 1; justify-content: center;">💾 Télécharger le .txt</button>
+                    <button class="btn secondary" onclick="closePromptModal()" style="flex: 1; justify-content: center;">Fermer</button>
                 </div>
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                <button id="downloadPromptConfirmBtn" class="btn action-btn" style="flex: 1; justify-content: center;">💾 Télécharger le .txt</button>
-                <button class="btn secondary" onclick="closePromptModal()" style="flex: 1; justify-content: center;">Fermer</button>
             </div>
         </div>
     </div>
 
-    <!-- Overlay Drag & Drop -->
+
+
     <div id="dropZoneOverlay" class="dropzone-overlay">
         <span class="dropzone-icon">📂</span>
         <h2>Lâchez votre fichier JSON ici</h2>
     </div>
 
+    <div id="scrollMarker" class="scroll-marker" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Remonter en haut">
+        <span id="scrollDate">📅 --/--/----</span>
+        <span style="opacity:0.3; margin: 0 8px;">|</span>
+        <span id="scrollProgress">0%</span> 
+        <span style="opacity:0.3; margin: 0 8px;">|</span>
+        <span>🔼</span>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
