@@ -8,9 +8,46 @@ let currentExportData = null;
 let rootHandle = null;
 let videoObserver = null;
 let autoPlayVideo = localStorage.getItem('grokAutoPlay') !== 'false';
+let selectedSet = new Set(); // NOUVEAU : Pour mémoriser les cases cochées
+let isCompact = false; // Mémorise l'état du mode compact
+let currentIndex = 0;
+const CHUNK_SIZE = 50; // Nombre d'images chargées par palier
+let cloudItems = [];
+let linkedItems = [];
+let orphanItems = [];
+let cloudIndex = 0;
+let linkedIndex = 0;
+let orphanIndex = 0;
+
+
+
+
+window.toggleCompactMode = function() {
+    isCompact = !isCompact;
+    
+    // Applique ou retire la classe CSS sur nos 3 grilles
+    ['jsonLinks', 'linkedLocalFiles', 'localFiles'].forEach(id => {
+        const grid = document.getElementById(id);
+        if (grid) grid.classList.toggle('compact', isCompact);
+    });
+
+    // Met à jour l'aspect du bouton
+    const btn = document.getElementById('compactBtn');
+    if (btn) {
+        btn.innerHTML = isCompact ? '🔲 Normal' : '⏹️ Compact';
+        btn.style.background = isCompact ? 'var(--accent)' : 'transparent';
+        btn.style.color = isCompact ? 'var(--bg)' : 'var(--text)';
+    }
+
+    // Coupe IMMÉDIATEMENT toutes les vidéos en cours de lecture
+    if (isCompact) {
+        document.querySelectorAll('.lazy-video').forEach(video => video.pause());
+    }
+};
 
 const jsonLinksEl = document.getElementById('jsonLinks');
 const localFilesEl = document.getElementById('localFiles');
+const linkedLocalFilesEl = document.getElementById('linkedLocalFiles'); // NOUVELLE GRILLE
 
 // ==========================================
 // GESTION INDEXEDDB (PERSISTANCE)
@@ -33,12 +70,13 @@ async function saveSession() {
     const store = tx.objectStore(storeName);
     if (rootHandle) {
         await store.put(rootHandle, "rootHandle");
-        await store.delete("importedAssets"); // Nettoie les anciens imports JSON
+        await store.delete("importedAssets");
     } else if (allAssets.length > 0) {
-        await store.put(allAssets, "importedAssets"); // Sauvegarde la session JSON
-        await store.delete("rootHandle"); // Nettoie les anciens dossiers
+        await store.put(allAssets, "importedAssets");
+        await store.delete("rootHandle");
     }
     await store.put(Array.from(visitedSet), "visitedSet");
+    await store.put(Array.from(selectedSet), "selectedSet"); // NOUVEAU
 }
 
 async function loadSession() {
@@ -58,8 +96,14 @@ async function loadSession() {
             const req = store.get("visitedSet");
             req.onsuccess = () => r(req.result);
         });
+        // NOUVEAU
+        const savedSelected = await new Promise(r => {
+            const req = store.get("selectedSet");
+            req.onsuccess = () => r(req.result);
+        });
 
         if (savedVisited) visitedSet = new Set(savedVisited);
+        if (savedSelected) selectedSet = new Set(savedSelected); // NOUVEAU
         
         // Si un dossier OU un fichier JSON a été sauvegardé, on propose de reprendre la session
         if (savedHandle || (savedAssets && savedAssets.length > 0)) {
@@ -106,6 +150,7 @@ async function clearSession() {
         await store.clear();
         rootHandle = null;
         visitedSet = new Set();
+        selectedSet = new Set(); // NOUVEAU
         allAssets = [];
         galleryItems = [];
         authData = null;
@@ -128,21 +173,46 @@ function setLoading(isLoading, message = "⏳ Analyse en cours...") {
     }
 }
 
-function toggleAccordion(id, el) { 
-    const section = document.getElementById(id);
-    if (section) {
-        section.classList.toggle('hidden'); 
-        if (el) el.classList.toggle('collapsed'); 
-    }
+function toggleAccordion(targetId, el) { 
+    const allSections = ['jsonSection', 'linkedLocalSection', 'localSection'];
+    const targetSection = document.getElementById(targetId);
+    if (!targetSection) return;
+    
+    // Vérifie si on essaie d'ouvrir ou de fermer
+    const isOpening = targetSection.classList.contains('hidden');
+
+    allSections.forEach(id => {
+        const sec = document.getElementById(id);
+        const header = sec ? sec.previousElementSibling : null;
+        
+        if (id === targetId && isOpening) {
+            // Ouvre la section cliquée
+            if (sec) sec.classList.remove('hidden');
+            if (header) header.classList.remove('collapsed');
+            
+            // Bonus : Met à jour le bouton actif dans la barre du haut !
+            const topBtn = document.querySelector(`.nav-anchor-btn[onclick*="${id}"]`);
+            if (topBtn) {
+                document.querySelectorAll('.nav-anchor-btn').forEach(b => b.classList.remove('active'));
+                topBtn.classList.add('active');
+            }
+        } else {
+            // Ferme TOUTES les autres sections
+            if (sec) sec.classList.add('hidden');
+            if (header) header.classList.add('collapsed');
+        }
+    });
 }
 
 function forceOpenSection(id) {
     const section = document.getElementById(id);
-    if (section && section.classList.contains('hidden')) {
-        section.classList.remove('hidden');
-        if (section.previousElementSibling) section.previousElementSibling.classList.remove('collapsed');
+    // On simule un clic sur l'accordéon pour utiliser la logique d'exclusion ci-dessus
+    if (section) {
+        section.classList.add('hidden'); // Force l'état fermé pour être sûr de l'ouvrir
+        toggleAccordion(id, section.previousElementSibling);
     }
 }
+
 
 window.markAsVisited = function(url, el) { 
     visitedSet.add(url); 
@@ -197,9 +267,28 @@ async function runFullScan() {
     allAssets = [];
     authData = null;
     billingData = null;
+    
+    // 1. On scanne tout le dossier (Fichiers locaux + Fichiers JSON)
     await scanDirectory(rootHandle);
+
+    // 2. ÉTAPE DE RÉCONCILIATION
+    allAssets.forEach(asset => {
+        if (asset.source === 'Local') {
+            const cloudMatch = allAssets.find(a => a.source === 'Cloud' && a.id === asset.id);
+            if (cloudMatch) {
+                asset.prompt = cloudMatch.prompt;
+                asset.link = cloudMatch.link;
+                asset.hasCloudMatch = true;  // NOUVEAU : On marque qu'il a une correspondance
+            } else {
+                asset.prompt = "Prompt indisponible (Média orphelin)";
+                asset.hasCloudMatch = false; // NOUVEAU : Média orphelin
+            }
+        }
+    });
+
     setLoading(false);
     renderGallery();
+    
     if (allAssets.some(a => a.source === 'Cloud')) forceOpenSection('jsonSection');
     else if (allAssets.some(a => a.source === 'Local')) forceOpenSection('localSection');
 }
@@ -211,16 +300,26 @@ async function scanDirectory(handle) {
                 const file = await entry.getFile();
                 if (entry.name === 'prod-mc-auth-mgmt-api.json') authData = JSON.parse(await file.text());
                 if (entry.name === 'prod-mc-billing.json') billingData = JSON.parse(await file.text());
+                
+                // Analyse du fichier contenant les données textuelles
                 if (entry.name === 'prod-grok-backend.json') {
                     const data = JSON.parse(await file.text());
                     (data.media_posts || []).forEach(p => {
                         if (!allAssets.find(a => a.id === p.id && a.source === 'Cloud')) {
                             const isVideo = p.media_type === 'video';
+                            
+                            // NOUVEAU : On cherche le texte sous plusieurs noms possibles
+                            const realPrompt = p.original_prompt || p.prompt || p.text || 'Texte introuvable';
+                            
                             allAssets.push({
-                                id: p.id, prompt: p.original_prompt || 'Généré', 
+                                id: p.id, 
+                                prompt: realPrompt, 
                                 url: isVideo ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
                                 poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
-                                link: p.link, media_type: p.media_type, date: new Date(p.create_time), source: 'Cloud'
+                                link: p.link, 
+                                media_type: p.media_type, 
+                                date: new Date(p.create_time), 
+                                source: 'Cloud'
                             });
                         }
                     });
@@ -248,176 +347,343 @@ async function scanDirectory(handle) {
     }
 }
 
+function createCardElement(asset, idx) {
+    const isV = visitedSet.has(asset.url);
+    const card = document.createElement('div');
+    card.className = `media-card ${isV ? 'visited' : ''}`;
+    
+    card.style.contentVisibility = 'auto';
+    card.style.containIntrinsicSize = '300px 400px';
+
+    const linkedCloud = allAssets.find(item => item.source === 'Cloud' && item.id === asset.id);
+    const actionUrl = asset.source === 'Cloud' ? asset.link : (linkedCloud ? linkedCloud.link : null);
+    
+    // Priorité à la date du Cloud si liée
+    const displayDate = (linkedCloud && linkedCloud.date) ? linkedCloud.date : asset.date;
+    const dateTimeStr = displayDate.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    
+    card.dataset.date = dateTimeStr;
+    const isVideo = asset.media_type === 'video';
+    const isExpired = !isVideo && asset.url.includes('/share-images/');
+
+    card.innerHTML = `
+        <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative; background: #000;">
+            <div style="position: absolute; top: 5px; left: 5px; display: flex; gap: 4px; z-index: 2;">
+                <span class="badge type-badge ${asset.source.toLowerCase()}" style="position: static; ${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">
+                    ${isVideo ? 'Vidéo' : 'Photo'}
+                </span>
+                ${isExpired ? `<span class="badge warning-badge" style="position: static; background:var(--warning); color:#000;">⚠️<span class="warning-text"> Expiré</span></span>` : ''}
+            </div>
+            ${isVideo 
+                ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
+                : `<img src="${asset.url}" data-id="${asset.id}" loading="lazy" width="300" height="250" style="width:100%;height:100%;object-fit:cover;" onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" onerror="window.handleImgError(this)">`}
+        </div>
+        <div class="info">
+            <strong style="display: block; margin-bottom: 5px;">${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 45)}${asset.prompt.length > 45 ? '...' : ''}</strong>
+            <div style="font-size:0.75rem; color:#888; margin-bottom: 8px;">📅 ${dateTimeStr}</div>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 12px;" onclick="event.stopPropagation()"><input type="checkbox" data-url="${asset.url}" ${selectedSet.has(asset.url) ? 'checked' : ''}> Sélectionner</label>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+                ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
+                <div style="display:flex; gap:5px;">
+                    ${asset.source === 'Local' ? `<button class="btn secondary" style="flex:1; padding: 8px 5px;" onclick="event.stopPropagation(); downloadLocalMedia('${asset.url}', '${asset.id}', '${asset.media_type}')">📥 MÉDIA</button>` : ''}
+                    <button class="btn secondary" style="flex:1; padding: 8px 5px;" onclick="event.stopPropagation(); openPromptModal(\`${asset.prompt.replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`, '${asset.id}')">📝 PROMPT</button>
+                </div>
+            </div>
+        </div>`;
+
+    // Réattache les événements (Checkbox et Vidéo)
+    setupCardEvents(card, asset, idx, isVideo);
+    return card;
+}
+
+function setupCardEvents(card, asset, idx, isVideo) {
+    // --- LOGIQUE DES CHECKBOX ---
+    const checkbox = card.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                selectedSet.add(this.dataset.url);
+            } else {
+                selectedSet.delete(this.dataset.url);
+            }
+            saveSession();
+
+            // Mise à jour visuelle du "Tout sélectionner" de l'onglet correspondant
+            const gridId = asset.source === 'Cloud' ? 'jsonLinks' : 'localFiles';
+            const selectAllCb = document.querySelector(`.select-all-cb[data-target-grid="${gridId}"]`);
+            if (selectAllCb) {
+                if (!this.checked) {
+                    selectAllCb.checked = false;
+                } else {
+                    const grid = document.getElementById(gridId);
+                    const allCbs = grid.querySelectorAll('input[type="checkbox"]:not(.select-all-cb)');
+                    selectAllCb.checked = Array.from(allCbs).every(c => c.checked);
+                }
+            }
+        });
+    }
+
+    // --- LOGIQUE VIDÉO (LECTURE/PAUSE) ---
+    let isLongPress = false;
+    let touchTimer = null;
+
+    const forcePlayVideo = () => {
+        if (typeof isCompact !== 'undefined' && isCompact) return; 
+        if (isVideo && !autoPlayVideo) {
+            const v = card.querySelector('video');
+            if (v) {
+                if (v.dataset.src) {
+                    v.src = v.dataset.src;
+                    v.removeAttribute('data-src');
+                    v.load();
+                }
+                v.play().catch(() => {});
+            }
+        }
+    };
+
+    const forcePauseVideo = () => {
+        const v = card.querySelector('video');
+        if (v) v.pause();
+    };
+
+    // Interactions Souris
+    card.onmouseenter = forcePlayVideo;
+    card.onmouseleave = forcePauseVideo;
+
+    // Interactions Tactiles (Mobile)
+    if (isVideo) {
+        card.addEventListener('touchstart', () => {
+            isLongPress = false;
+            touchTimer = setTimeout(() => { 
+                isLongPress = true; 
+                forcePlayVideo(); 
+            }, 400);
+        }, { passive: true });
+
+        const cancelTouch = () => { 
+            clearTimeout(touchTimer); 
+            forcePauseVideo(); 
+        };
+        card.addEventListener('touchend', cancelTouch, { passive: true });
+        card.addEventListener('touchcancel', cancelTouch, { passive: true });
+        card.addEventListener('touchmove', cancelTouch, { passive: true });
+    }
+
+    // --- CLIC PRINCIPAL (LIGHTBOX) ---
+    card.onclick = (e) => {
+        // Si c'est un appui long sur mobile, on n'ouvre pas la lightbox
+        if (isLongPress) {
+            e.preventDefault();
+            isLongPress = false;
+            return;
+        }
+        markAsViewed(card);
+        openLightbox(idx); // Utilise l'index global passé en argument
+    };
+
+    // --- OBSERVATION POUR L'AUTOPLAY ---
+    if (isVideo && videoObserver) {
+        videoObserver.observe(card.querySelector('video'));
+    }
+}
+
+function updateCounters(filtered) {
+    const cloudLen = filtered.filter(a => a.source === 'Cloud').length;
+    const matchedLen = filtered.filter(a => a.source === 'Local' && a.hasCloudMatch).length;
+    const unmatchedLen = filtered.filter(a => a.source === 'Local' && !a.hasCloudMatch).length;
+    
+    // Mise à jour des éléments du DOM
+    const elements = {
+        'numberImg': unmatchedLen,
+        'numberLinkedLocalTop': matchedLen,
+        'numberLink': cloudLen,
+        'numberLinkedLocal': matchedLen,
+        'numberImg2': unmatchedLen,
+        'numberLink2': cloudLen
+    };
+
+    for (const [id, value] of Object.entries(elements)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    }
+
+    const clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) clearBtn.disabled = allAssets.length === 0;
+}
+
+
 function renderGallery() {
+    // 1. Remise à zéro des compteurs
+    cloudIndex = 0;
+    linkedIndex = 0;
+    orphanIndex = 0;
     document.querySelectorAll('.select-all-cb').forEach(cb => cb.checked = false);
 
-    const typeF = document.getElementById('sortType') ? document.getElementById('sortType').value : 'all';
-    const dateO = document.getElementById('sortDate') ? document.getElementById('sortDate').value : 'date-desc';
+    const typeF = document.getElementById('sortType')?.value || 'all';
+    const dateO = document.getElementById('sortDate')?.value || 'date-desc';
     
+    // 2. Filtrage global
     const filtered = allAssets.filter(a => typeF === 'all' || a.media_type === typeF);
-    filtered.sort((a,b) => dateO === 'date-desc' ? b.date - a.date : a.date - b.date);
-    galleryItems = filtered;
+    
+    // 3. Séparation en 3 listes indépendantes
+    cloudItems = filtered.filter(a => a.source === 'Cloud');
+    linkedItems = filtered.filter(a => a.source === 'Local' && a.hasCloudMatch);
+    orphanItems = filtered.filter(a => a.source === 'Local' && !a.hasCloudMatch);
+
+    // 4. Tri par date pour chaque liste
+    const sortFn = (a, b) => dateO === 'date-desc' ? b.date - a.date : a.date - b.date;
+    cloudItems.sort(sortFn);
+    linkedItems.sort(sortFn);
+    orphanItems.sort(sortFn);
+
+    // 5. Reconstitution pour la Lightbox (L'ordre sera : Cloud -> Liés -> Orphelins)
+    galleryItems = [...cloudItems, ...linkedItems, ...orphanItems];
     
     if (jsonLinksEl) jsonLinksEl.innerHTML = ''; 
     if (localFilesEl) localFilesEl.innerHTML = '';
+    if (linkedLocalFilesEl) linkedLocalFilesEl.innerHTML = ''; 
 
     if (videoObserver) videoObserver.disconnect();
-    videoObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const video = entry.target;
-            if (entry.isIntersecting) {
-                if (autoPlayVideo) {
-                    if (video.dataset.src) { video.src = video.dataset.src; video.removeAttribute('data-src'); video.load(); }
-                    video.play().catch(() => {});
-                }
-            } else { 
-                video.pause(); 
-            }
+
+    // 6. La fonction de chargement par paquets
+    window.loadNextChunk = function() {
+        // S'il n'y a plus rien à charger nulle part, on arrête
+        if (cloudIndex >= cloudItems.length && linkedIndex >= linkedItems.length && orphanIndex >= orphanItems.length) return;
+
+        const cloudFrag = document.createDocumentFragment();
+        const linkedFrag = document.createDocumentFragment();
+        const orphanFrag = document.createDocumentFragment();
+
+        // --- PAQUET CLOUD ---
+        const cloudLimit = Math.min(cloudIndex + CHUNK_SIZE, cloudItems.length);
+        cloudItems.slice(cloudIndex, cloudLimit).forEach((asset, i) => {
+            const absoluteIdx = cloudIndex + i; // Index direct
+            cloudFrag.appendChild(createCardElement(asset, absoluteIdx));
         });
-    }, { threshold: 0.1 });
+        cloudIndex = cloudLimit;
 
-    const cloudFragment = document.createDocumentFragment();
-    const localFragment = document.createDocumentFragment();
+        // --- PAQUET LIÉS ---
+        const linkedLimit = Math.min(linkedIndex + CHUNK_SIZE, linkedItems.length);
+        linkedItems.slice(linkedIndex, linkedLimit).forEach((asset, i) => {
+            const absoluteIdx = cloudItems.length + linkedIndex + i; // Décalage pour la Lightbox
+            linkedFrag.appendChild(createCardElement(asset, absoluteIdx));
+        });
+        linkedIndex = linkedLimit;
 
-    filtered.forEach((asset, idx) => {
-        const isV = visitedSet.has(asset.url);
-        const card = document.createElement('div');
-        card.className = `media-card ${isV ? 'visited' : ''}`;
-        
-        // Optimisation RAM : Empêche le rendu complet si hors écran
-        card.style.contentVisibility = 'auto';
-        card.style.containIntrinsicSize = '300px 400px';
+        // --- PAQUET ORPHELINS ---
+        const orphanLimit = Math.min(orphanIndex + CHUNK_SIZE, orphanItems.length);
+        orphanItems.slice(orphanIndex, orphanLimit).forEach((asset, i) => {
+            const absoluteIdx = cloudItems.length + linkedItems.length + orphanIndex + i; // Décalage pour la Lightbox
+            orphanFrag.appendChild(createCardElement(asset, absoluteIdx));
+        });
+        orphanIndex = orphanLimit;
 
-        const linkedCloud = allAssets.find(item => item.source === 'Cloud' && item.id === asset.id);
-        const actionUrl = asset.source === 'Cloud' ? asset.link : (linkedCloud ? linkedCloud.link : null);
-        const dateTimeStr = asset.date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        const isVideo = asset.media_type === 'video';
+        // 7. Injection SILENCIEUSE (sans forcer l'ouverture des accordéons)
+        if (cloudFrag.children.length > 0 && jsonLinksEl) jsonLinksEl.appendChild(cloudFrag);
+        if (linkedFrag.children.length > 0 && linkedLocalFilesEl) linkedLocalFilesEl.appendChild(linkedFrag);
+        if (orphanFrag.children.length > 0 && localFilesEl) localFilesEl.appendChild(orphanFrag);
+    };
 
-        card.innerHTML = `
-            <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative; background: #000;">
-                <span class="badge ${asset.source.toLowerCase()}" style="${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">
-                    ${isVideo ? 'Vidéo' : 'Photo'}
-                </span>
-                ${isVideo 
-                    ? `<video class="lazy-video" data-src="${asset.url}" poster="${asset.poster || ''}" muted loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover;"></video>
-                       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;">▶️</div>` 
-                    : `<img src="${asset.url}" 
-                        loading="lazy" 
-                        width="300" height="250"
-                        style="width:100%;height:100%;object-fit:cover; image-rendering: low-quality;" 
-                        onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" 
-                        onerror="window.handleImgError(this)">`}
-            </div>
-            <div class="info">
-                <strong style="display: block; margin-bottom: 5px;">
-                    ${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 45)}${asset.prompt.length > 45 ? '...' : ''}
-                </strong>
-                <div style="font-size:0.75rem; color:#888; margin-bottom: 8px;">📅 ${dateTimeStr}</div>
-                
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 12px;" onclick="event.stopPropagation()">
-                    <input type="checkbox" data-url="${asset.url}"> Sélectionner
-                </label>
+    // Premier chargement
+    loadNextChunk();
+    updateCounters(filtered);
 
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
-                    ${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn" onclick="event.stopPropagation(); markAsVisited('${asset.url}', this.closest('.media-card'));">🔗 VOIR SUR GROK</a>` : ''}
-                    
-                    <div style="display:flex; gap:5px;">
-                        ${asset.source === 'Cloud' ? 
-                            `<button class="btn secondary" style="flex:1; justify-content:center; background:#eee; color:#000; padding: 8px 5px;" onclick="event.stopPropagation(); downloadCloudFile('${asset.url}','${asset.id}','${asset.media_type}')">💾 MÉDIA</button>` 
-                            : ''
-                        }
-                        <button class="btn secondary" style="flex:1; justify-content:center; background:#fff; color:#000; border:1px solid var(--border); padding: 8px 5px;" 
-                                onclick="event.stopPropagation(); openPromptModal(\`${asset.prompt.replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`, '${asset.id}')">
-                            📝 PROMPT
-                        </button>
-                    </div>
-                </div>
-            </div>`;
+    // NOUVEAU : On ouvre l'accordéon Cloud en priorité, ou le suivant s'il est vide
+    if (cloudItems.length > 0) {
+        forceOpenSection('jsonSection');
+    } else if (linkedItems.length > 0) {
+        forceOpenSection('linkedLocalSection');
+    } else if (orphanItems.length > 0) {
+        forceOpenSection('localSection');
+    }
 
-        // Logique Checkbox
-        const checkbox = card.querySelector('input[type="checkbox"]');
-        if (checkbox) {
-            checkbox.addEventListener('change', function() {
-                const gridId = asset.source === 'Cloud' ? 'jsonLinks' : 'localFiles';
-                const selectAllCb = document.querySelector(`.select-all-cb[data-target-grid="${gridId}"]`);
-                if (selectAllCb) {
-                    if (!this.checked) { selectAllCb.checked = false; } 
-                    else {
-                        const grid = document.getElementById(gridId);
-                        const allCbs = grid.querySelectorAll('input[type="checkbox"]:not(.select-all-cb)');
-                        selectAllCb.checked = Array.from(allCbs).every(c => c.checked);
-                    }
-                }
-            });
-        }
 
-        // Logique Vidéo & Interaction
-        let isLongPress = false;
-        let touchTimer = null;
-
-        const forcePlayVideo = () => {
-            if (isVideo && !autoPlayVideo) {
-                const v = card.querySelector('video');
-                if (v) { if (v.dataset.src) { v.src = v.dataset.src; v.removeAttribute('data-src'); v.load(); } v.play().catch(() => {}); }
+    // Restauration du scroll avec vérification des 3 index
+    const savedScroll = parseInt(localStorage.getItem('grokGalleryScroll') || "0");
+    if (savedScroll > 500) {
+        const scrollLoader = setInterval(() => {
+            const totalLoaded = cloudIndex + linkedIndex + orphanIndex;
+            if (document.body.scrollHeight > savedScroll + 1000 || totalLoaded >= galleryItems.length) {
+                window.scrollTo({ top: savedScroll, behavior: 'instant' });
+                clearInterval(scrollLoader);
+            } else {
+                loadNextChunk();
             }
-        };
-
-        const forcePauseVideo = () => {
-            if (isVideo && !autoPlayVideo) {
-                const v = card.querySelector('video');
-                if (v) v.pause();
-            }
-        };
-
-        card.onmouseenter = forcePlayVideo;
-        card.onmouseleave = forcePauseVideo;
-
-        if (isVideo) {
-            card.addEventListener('touchstart', (e) => {
-                isLongPress = false;
-                touchTimer = setTimeout(() => { isLongPress = true; forcePlayVideo(); }, 400); 
-            }, {passive: true});
-
-            const cancelTouch = () => { clearTimeout(touchTimer); forcePauseVideo(); };
-            card.addEventListener('touchend', cancelTouch, {passive: true});
-            card.addEventListener('touchcancel', cancelTouch, {passive: true});
-            card.addEventListener('touchmove', cancelTouch, {passive: true});
-        }
-
-        card.onclick = (e) => { 
-            if (isLongPress) { e.preventDefault(); isLongPress = false; return; }
-            markAsViewed(card); openLightbox(idx); 
-        };
-        
-        if (asset.source === 'Cloud') cloudFragment.appendChild(card);
-        else localFragment.appendChild(card);
-        
-        if (isVideo) videoObserver.observe(card.querySelector('video'));
-    });
-
-    if (jsonLinksEl) jsonLinksEl.appendChild(cloudFragment);
-    if (localFilesEl) localFilesEl.appendChild(localFragment);
-
-    // Mise à jour des compteurs
-    const localLen = filtered.filter(a => a.source === 'Local').length;
-    const cloudLen = filtered.filter(a => a.source === 'Cloud').length;
-    
-    if(document.getElementById('numberImg')) document.getElementById('numberImg').textContent = localLen;
-    if(document.getElementById('numberImg2')) document.getElementById('numberImg2').textContent = localLen;
-    if(document.getElementById('numberLink')) document.getElementById('numberLink').textContent = cloudLen;
-    if(document.getElementById('numberLink2')) document.getElementById('numberLink2').textContent = cloudLen;
-    if(document.getElementById('clearBtn')) document.getElementById('clearBtn').disabled = allAssets.length === 0;
+        }, 50);
+    }
 }
 
 // N'oubliez pas d'ajouter cette fonction globale en dehors de renderGallery
 window.handleImgError = function(img) {
-    setTimeout(() => {
-        if (img && img.naturalWidth === 0) {
-            img.src = 'https://placehold.co/400x300?text=Lien+Expire';
-            img.classList.add('loaded');
-            if (img.parentElement) img.parentElement.style.animation = 'none';
+    let retries = parseInt(img.dataset.retries || '0');
+    const maxRetries = 2; // On baisse à 2 pour ne pas faire trop attendre l'utilisateur
+
+    // 1. TENTATIVES NORMALES (On insiste sur le lien actuel)
+    if (retries < maxRetries) {
+        retries++;
+        img.dataset.retries = retries;
+        
+        setTimeout(() => {
+            const baseUrl = img.src.split('?')[0];
+            img.src = `${baseUrl}?retry=${Date.now()}`;
+        }, 1500);
+        return; 
+    }
+
+    // 2. LE PLAN DE SECOURS (Si ça échoue, on tente de deviner le dossier d'archive)
+    const currentUrl = img.src.split('?')[0];
+    
+    if (currentUrl.includes('/images/')) {
+        img.dataset.retries = '0'; 
+        const newUrl = currentUrl.replace('/images/', '/share-images/');
+        img.src = newUrl + `?fallback=${Date.now()}`;
+        
+        // 🌟 LA MAGIE EST ICI : On synchronise le reste de l'application
+        const assetId = img.dataset.id;
+        if (assetId) {
+            // 1. Mise à jour de la mémoire globale (La Lightbox lira ce nouveau lien !)
+            const asset = allAssets.find(a => a.id === assetId);
+            if (asset) {
+                asset.url = newUrl;
+            }
+            
+            // 2. Mise à jour de la case à cocher (Pour que le téléchargement ZIP marche)
+            const card = img.closest('.media-card');
+            if (card) {
+                const checkbox = card.querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.dataset.url = newUrl;
+            }
         }
-    }, 1500);
+        return; 
+    }
+
+    // 3. SI ON ARRIVE ICI, C'EST QUE MÊME LE PLAN DE SECOURS A ÉCHOUÉ : LE LIEN EST MORT
+    
+    img.src = 'https://placehold.co/400x300/1a1a1a/ff4444?text=Média+Expiré';
+    img.classList.add('loaded');
+    
+    if (img.parentElement) {
+        img.parentElement.style.animation = 'none';
+        img.parentElement.style.background = '#1a1a1a';
+    }
+
+    const card = img.closest('.media-card');
+    if (card) {
+        card.style.borderColor = 'var(--danger)';
+        card.style.opacity = '0.7';
+        
+        const linkBtn = card.querySelector('.grok-link-btn');
+        if (linkBtn) {
+            linkBtn.innerHTML = '⚠️ LIEN SUREMENT MORT';
+            linkBtn.style.background = 'var(--danger)';
+            linkBtn.style.color = '#fff';
+            linkBtn.title = "L'image source a disparu, même dans les archives latentes.";
+        }
+        
+        const checkbox = card.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.disabled = true;
+    }
 };
 
 // ==========================================
@@ -426,46 +692,70 @@ window.handleImgError = function(img) {
 const isExtension = (typeof browser !== 'undefined' && browser.downloads) || (typeof chrome !== 'undefined' && chrome.downloads);
 const downloadsAPI = isExtension ? (typeof browser !== 'undefined' ? browser.downloads : chrome.downloads) : null;
 
-window.downloadCloudFile = async function(url, id, type) {
-    const filename = `grok-${id}.${type === 'video' ? 'mp4' : 'jpg'}`;
-    if (downloadsAPI) {
-        try { await downloadsAPI.download({ url: url, filename: filename, saveAs: false }); } 
-        catch (err) { window.open(url, '_blank'); }
-    } else {
-        try {
-            const response = await fetch(url, { mode: 'cors' });
-            if (!response.ok) throw new Error();
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = blobUrl; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000); 
-        } catch (err) { window.open(url, '_blank'); }
-    }
+window.downloadLocalMedia = function(url, id, type) {
+    // Fonctionne parfaitement en 1 clic pour les fichiers locaux
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `grok-local-${id}.${type === 'video' ? 'mp4' : 'jpg'}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 };
 
 window.downloadSelectedMedia = async function() {
     const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
-    const selected = allAssets.filter(a => checked.includes(a.url));
-    if (selected.length === 0) return;
-    if (!downloadsAPI && selected.length > 10 && !confirm(`Télécharger ${selected.length} fichiers ?`)) return;
+    const localSelected = allAssets.filter(a => checked.includes(a.url) && a.source === 'Local');
 
-    setLoading(true, "📥 Téléchargement...");
-    for (let i = 0; i < selected.length; i++) {
-        const asset = selected[i];
-        const filename = `grok-${asset.source === 'Local' ? 'local-' : ''}${asset.id}.${asset.media_type === 'video' ? 'mp4' : 'jpg'}`;
-        if (downloadsAPI) {
-            try { await downloadsAPI.download({ url: asset.url, filename: filename, saveAs: false }); } catch (err) {}
-        } else {
-            if (asset.source === 'Cloud') { await downloadCloudFile(asset.url, asset.id, asset.media_type); } 
-            else {
-                const a = document.createElement('a'); a.href = asset.url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            }
-            if (i % 5 === 0) await new Promise(r => setTimeout(r, 600));
+    if (localSelected.length === 0) return;
+
+    // Avertissement si beaucoup de fichiers (le ZIP se crée dans la RAM du navigateur)
+    if (localSelected.length > 50) {
+        if (!confirm(`Vous allez compresser ${localSelected.length} fichiers.\n\nCela peut prendre un peu de temps et utiliser beaucoup de mémoire vive. Continuer ?`)) {
+            return;
         }
     }
-    setLoading(false);
+
+    setLoading(true, "📦 Création de l'archive ZIP en cours...");
+
+    try {
+        const zip = new JSZip();
+        const folder = zip.folder("Grok_Export_Local");
+
+        for (let i = 0; i < localSelected.length; i++) {
+            const asset = localSelected[i];
+            const filename = `grok-local-${asset.id}.${asset.media_type === 'video' ? 'mp4' : 'jpg'}`;
+
+            // Récupération du fichier local depuis la mémoire du navigateur
+            const response = await fetch(asset.url);
+            const blob = await response.blob();
+
+            // Ajout du fichier dans le dossier ZIP
+            folder.file(filename, blob);
+        }
+
+        // Génération du fichier ZIP final
+        const zipContent = await zip.generateAsync({ type: "blob" });
+        const zipUrl = URL.createObjectURL(zipContent);
+
+        // Lancement du téléchargement unique
+        const a = document.createElement('a');
+        a.href = zipUrl;
+        a.download = `Grok-Media-Export-${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Nettoyage de la mémoire après le téléchargement
+        setTimeout(() => URL.revokeObjectURL(zipUrl), 2000);
+
+    } catch (error) {
+        console.error("Erreur lors de la création du ZIP :", error);
+        alert("❌ Une erreur est survenue lors de la compression des fichiers.");
+    } finally {
+        setLoading(false);
+    }
 };
+
 
 async function deleteSelected() {
     const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
@@ -485,26 +775,69 @@ async function deleteSelected() {
     finally { setLoading(false); }
 }
 
+window.downloadFile = function() { 
+    if (currentExportData) { const a = document.createElement('a'); a.href = currentExportData.url; a.download = currentExportData.name; a.click(); }
+};
+
+window.downloadPrompt = function(promptText, id) {
+    const blob = new Blob([promptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prompt-grok-${id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
 // ==========================================
 // LIGHTBOX & MODALES
 // ==========================================
-window.openLightbox = function(i) {
-    if (i < 0 || i >= galleryItems.length) return;
-    currentLightboxIndex = i;
-    const a = galleryItems[i];
-    const content = document.getElementById('lightboxContent');
-    if(content) content.innerHTML = a.media_type === 'video' ? `<video src="${a.url}" controls autoplay playsinline></video>` : `<img src="${a.url}">`;
-    const linkedCloud = allAssets.find(item => item.source === 'Cloud' && item.id === a.id);
-    const actionUrl = a.source === 'Cloud' ? a.link : (linkedCloud ? linkedCloud.link : null);
-    const dateTimeStr = a.date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    if(document.getElementById('lightboxCounter')) document.getElementById('lightboxCounter').textContent = `${i + 1} / ${galleryItems.length}`;
-    if(document.getElementById('lightboxUrlItem')) {
-        document.getElementById('lightboxUrlItem').innerHTML = `<div style="color:#fff;font-size:0.8rem;margin-bottom:10px">📅 ${dateTimeStr}</div><div style="display:flex;gap:10px;justify-content:center;">${actionUrl ? `<a href="${actionUrl}" target="_blank" class="btn grok-link-btn">🔗 VOIR SUR GROK</a>` : ''}${a.source === 'Cloud' ? `<button class="btn secondary" style="background:#eee;color:#333!important;width:180px" onclick="downloadCloudFile('${a.url}','${a.id}','${a.media_type}')">💾 TÉLÉCHARGER</button>` : ''}</div>`;
+function openLightbox(index) {
+    currentLightboxIndex = index;
+    const asset = galleryItems[index]; // galleryItems contient la liste filtrée/triée
+    if (!asset) return;
+
+    const lightbox = document.getElementById('lightbox');
+    
+    // 1. CORRECTION ICI : lightboxContent (majuscule) au lieu de lightbox-content
+    const content = document.getElementById('lightboxContent'); 
+    
+    // On vide le contenu précédent
+    if (content) content.innerHTML = '';
+
+    if (asset.media_type === 'video') {
+        const video = document.createElement('video');
+        video.src = asset.url; // Utilise l'URL (potentiellement corrigée)
+        video.controls = true;
+        video.autoplay = true;
+        video.style.maxWidth = '100%';
+        video.style.maxHeight = '90vh';
+        if (content) content.appendChild(video);
+    } else {
+        const img = document.createElement('img');
+        img.src = asset.url; // Utilise l'URL (potentiellement corrigée)
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '90vh';
+        img.style.objectFit = 'contain';
+        
+        // Sécurité supplémentaire : si l'image de la lightbox échoue aussi
+        img.onerror = () => {
+            if (img.src.includes('/images/')) {
+                img.src = img.src.replace('/images/', '/share-images/');
+            }
+        };
+        
+        if (content) content.appendChild(img);
     }
-    const lightboxEl = document.getElementById('lightbox');
-    if(lightboxEl) lightboxEl.style.display = 'flex';
-    markAsViewed(document.querySelector(`input[data-url="${a.url}"]`)?.closest('.media-card'));
-};
+
+    // 2. CORRECTION ICI : Ton HTML utilise l'ID 'lightboxUrlItem' pour le texte du bas
+    const caption = document.getElementById('lightboxUrlItem');
+    if (caption) caption.textContent = asset.prompt;
+
+    if (lightbox) lightbox.style.display = 'flex';
+}
 
 window.closeLightbox = function() { 
     const lb = document.getElementById('lightbox');
@@ -540,22 +873,50 @@ window.openProfileModal = function() {
 window.closeProfileModal = function() { const pm = document.getElementById('profileModal'); if(pm) pm.style.display = 'none'; };
 window.closePopup = function() { const sp = document.getElementById('sharePopup'); if(sp) sp.style.display = 'none'; };
 
-window.scrollToSection = function(id) {
-    const sec = document.getElementById(id);
-    if(sec) {
-        sec.classList.remove('hidden');
-        if(sec.previousElementSibling) {
-            sec.previousElementSibling.classList.remove('collapsed');
-            sec.previousElementSibling.scrollIntoView({ behavior: 'smooth' });
-        }
+window.scrollToSection = function(targetId, btnElement = null) {
+    const allSections = ['jsonSection', 'linkedLocalSection', 'localSection'];
+    
+    // 1. Gestion du changement de couleur des boutons
+    if (btnElement) {
+        // On enlève la classe 'active' de tous les boutons
+        document.querySelectorAll('.nav-anchor-btn').forEach(btn => btn.classList.remove('active'));
+        // On l'ajoute uniquement au bouton cliqué
+        btnElement.classList.add('active');
     }
+
+    // 2. Gestion de l'ouverture/fermeture des accordéons
+    allSections.forEach(id => {
+        const sec = document.getElementById(id);
+        if (sec) {
+            const header = sec.previousElementSibling; 
+            
+            if (id === targetId) {
+                sec.classList.remove('hidden');
+                if (header) {
+                    header.classList.remove('collapsed');
+                    setTimeout(() => header.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }
+            } else {
+                sec.classList.add('hidden');
+                if (header) {
+                    header.classList.add('collapsed');
+                }
+            }
+        }
+    });
 };
+
+
 
 // ==========================================
 // EXPORT & LISTENERS ROBUSTES
 // ==========================================
 function setupSelectAllCheckboxes() {
-    const setups = [{ section: 'jsonSection', grid: 'jsonLinks' }, { section: 'localSection', grid: 'localFiles' }];
+    const setups = [
+        { section: 'jsonSection', grid: 'jsonLinks' }, 
+        { section: 'linkedLocalSection', grid: 'linkedLocalFiles' },
+        { section: 'localSection', grid: 'localFiles' }
+    ];
     setups.forEach(({section, grid}) => {
         const secEl = document.getElementById(section);
         if (!secEl) return;
@@ -574,7 +935,20 @@ function setupSelectAllCheckboxes() {
             const targetGrid = document.getElementById(grid);
             if (targetGrid) {
                 const checkboxes = targetGrid.querySelectorAll('input[type="checkbox"]:not(.select-all-cb)');
-                checkboxes.forEach(c => c.checked = e.target.checked);
+                checkboxes.forEach(c => {
+                    c.checked = e.target.checked;
+                    
+                    // NOUVEAU : Met à jour la mémoire (selectedSet) pour chaque case
+                    if (c.checked) {
+                        selectedSet.add(c.dataset.url);
+                    } else {
+                        selectedSet.delete(c.dataset.url);
+                    }
+                });
+                // NOUVEAU : Sauvegarde la session après avoir tout coché/décoché
+                if (typeof saveSession === 'function') {
+                    saveSession();
+                }
             }
         };
         label.appendChild(cb); label.appendChild(document.createTextNode('Tout sélectionner')); h2.appendChild(label);
@@ -599,16 +973,50 @@ safeBind('exportBtn', 'click', () => {
     const selected = allAssets.filter(a => checked.includes(a.url));
     if (!selected.length) return alert("Veuillez cocher des éléments d'abord !");
     
+    const localCount = selected.filter(a => a.source === 'Local').length;
+    const linkCount = selected.filter(a => a.link).length; // Compte les liens disponibles
+    
     const popupContent = document.querySelector('#sharePopup .popup-content');
     if (popupContent) {
-        popupContent.innerHTML = `<h2>✅ ${selected.length} sélectionnés</h2><div style="display:flex;flex-direction:column;gap:10px;margin-top:20px;"><button class="btn" id="jsonDownloadBtn" style="width:100%">Télécharger JSON</button><button class="btn" id="mediaDownloadBtn" style="width:100%;background:#00ffaa;color:#000;">Télécharger les Médias</button><button class="btn secondary" style="width:100%" onclick="closePopup()">Annuler</button></div>`;
+        let mediaBtnHtml = '';
+        if (localCount > 0) {
+            mediaBtnHtml = `<button class="btn" id="mediaDownloadBtn" style="width:100%;background:#00ffaa;color:#000;">📦 Télécharger les Médias Locaux (${localCount})</button>`;
+        } else {
+            mediaBtnHtml = `<p style="font-size: 0.8rem; color: #ffa500; margin-bottom: 5px;">⚠️ Médias Cloud : utilisez le clic droit sur l'image.</p>`;
+        }
+
+        // Ajout du bouton d'ouverture groupée si des liens existent
+        let openLinksBtnHtml = '';
+        if (linkCount > 0) {
+            openLinksBtnHtml = `<button class="btn action-btn" id="openLinksBtn" style="width:100%; margin-bottom:10px; background:var(--visited); color:#000;">🌐 Ouvrir dans Grok (${linkCount} onglets)</button>`;
+        }
+
+        popupContent.innerHTML = `
+            <h2 style="margin-bottom:15px;">✅ ${selected.length} éléments</h2>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="btn primary-btn" id="jsonDownloadBtn" style="width:100%">📄 Télécharger l'export JSON</button>
+                ${mediaBtnHtml}
+                ${openLinksBtnHtml}
+                <button class="btn secondary" style="width:100%" onclick="closePopup()">Annuler</button>
+            </div>`;
+            
+        // Logique Export JSON
         const exportData = selected.map(a => ({ id: a.id, prompt: a.prompt, media_type: a.media_type, url: a.url, date: a.date.toISOString(), link: a.link }));
         const blob = new Blob([JSON.stringify({ media_posts: exportData }, null, 2)], { type: 'application/json' });
         currentExportData = { url: URL.createObjectURL(blob), name: `export-${Date.now()}.json` };
-        
         document.getElementById('jsonDownloadBtn').onclick = () => { const a = document.createElement('a'); a.href = currentExportData.url; a.download = currentExportData.name; a.click(); };
-        document.getElementById('mediaDownloadBtn').onclick = () => { closePopup(); downloadSelectedMedia(); };
+        
+        // Logique Téléchargement Médias
+        if (localCount > 0) {
+            document.getElementById('mediaDownloadBtn').onclick = () => { closePopup(); downloadSelectedMedia(); };
+        }
+
+        // Logique Ouverture Onglets
+        if (linkCount > 0) {
+            document.getElementById('openLinksBtn').onclick = () => { closePopup(); openSelectedInBrowser(); };
+        }
     }
+    
     const sp = document.getElementById('sharePopup');
     if(sp) sp.style.display = 'flex';
 });
@@ -707,9 +1115,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-window.downloadFile = function() { 
-    if (currentExportData) { const a = document.createElement('a'); a.href = currentExportData.url; a.download = currentExportData.name; a.click(); }
-};
+
 
 window.handleImgError = function(img) {
     // Si on a déjà tout tenté (images -> share-images -> échec final)
@@ -789,14 +1195,86 @@ window.onclick = (e) => {
     if (e.target.id === 'promptModal') closePromptModal();
 };
 
-window.downloadPrompt = function(promptText, id) {
-    const blob = new Blob([promptText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `prompt-grok-${id}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+window.openSelectedInBrowser = function() {
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
+    const selectedWithLinks = allAssets.filter(a => checked.includes(a.url) && a.link);
+
+    if (selectedWithLinks.length === 0) {
+        alert("Aucun lien Grok disponible pour cette sélection.");
+        return;
+    }
+
+    if (selectedWithLinks.length > 15 && !confirm(`Ouvrir ${selectedWithLinks.length} onglets ? Cela peut ralentir votre navigateur.`)) {
+        return;
+    }
+
+    alert("💡 Si un seul onglet s'ouvre, vérifiez que votre navigateur n'a pas bloqué les 'fenêtres surgissantes' (Pop-ups) en haut à droite de la barre d'adresse.");
+
+    selectedWithLinks.forEach(asset => {
+        window.open(asset.link, '_blank');
+    });
 };
+
+
+
+// ==========================================
+// MARQUEUR DE SCROLL INTELLIGENT
+// ==========================================
+let scrollTimeout;
+
+window.addEventListener('scroll', () => {
+    if (!scrollTimeout) {
+        scrollTimeout = requestAnimationFrame(() => {
+            // 1. On déclare les variables ICI, tout en haut, pour qu'elles soient toujours accessibles
+            const scrollTop = window.scrollY;
+            const docHeight = document.body.scrollHeight;
+            const winHeight = window.innerHeight;
+            
+            // 2. On sauvegarde la position instantanément à chaque mouvement
+            localStorage.setItem('grokGalleryScroll', Math.round(scrollTop));
+            
+            // 3. On gère l'affichage visuel du marqueur
+            const marker = document.getElementById('scrollMarker');
+            const progressSpan = document.getElementById('scrollProgress');
+            const dateSpan = document.getElementById('scrollDate');
+
+            // Détection du bas de page pour charger la suite
+            const triggerPoint = docHeight - winHeight - 1500;
+            
+            // NOUVEAU : On calcule combien on a chargé en tout
+            const totalLoaded = cloudIndex + linkedIndex + orphanIndex;
+            
+            // On charge si on approche du bas ET qu'on n'a pas tout chargé
+            if (scrollTop > triggerPoint && totalLoaded < galleryItems.length) {
+                loadNextChunk();
+            }
+            
+if (marker && progressSpan && dateSpan) {
+                // Calcul du pourcentage
+                let percent = 0;
+                if (docHeight > winHeight) {
+                    percent = Math.round((scrollTop / (docHeight - winHeight)) * 100);
+                }
+                
+                // Si on a scrollé d'au moins 300 pixels
+                if (scrollTop > 300) {
+                    marker.classList.add('visible');
+                    progressSpan.textContent = percent + '%';
+                    
+                    // Récupération de la date au centre (méthode infaillible via dataset)
+                    const centerEl = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+                    const card = centerEl ? centerEl.closest('.media-card') : null;
+                    
+                    if (card && card.dataset.date) {
+                        dateSpan.textContent = '📅 ' + card.dataset.date.substring(0, 10);
+                    }
+                } else {
+                    marker.classList.remove('visible');
+                }
+            }
+            
+            scrollTimeout = null;
+        });
+    }
+});
