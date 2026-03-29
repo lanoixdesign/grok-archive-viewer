@@ -9,98 +9,140 @@
 </head>
 <body>
     
-    <!-- ZONE FIXE GLOBALE -->
     <div class="sticky-top-area">
         
-        <!-- 1. BARRE D'EN-TÊTE (Paramètres & Profil) -->
         <header class="main-header">
             <div class="container header-container">
-                <h1 class="logo">🗄️ Grok Imagine Archive</h1>
+                <h1 class="logo">🗄️ Mes Archives Grok</h1>
                 <div class="header-actions">
-                    <!-- Nouveau bouton de rétractation -->
-                    <button class="icon-btn" id="toggleToolbarsBtn" title="Masquer les outils">⬆️</button>
-                    <button class="icon-btn" onclick="openProfileModal()" title="Mon Profil">👤</button>
-                    <button class="icon-btn" id="toggleTheme" title="Changer le thème">☀️</button>
-                    <button class="icon-btn warning" id="clearSessionBtn" title="Effacer la Session Navigateur">🧹</button>
-                    <button class="icon-btn" id="donBtn" title="Offrir un café">☕</button>
+                    <!--button class="btn danger-btn" id="clearSessionBtnMenu" style="justify-content: center; border-radius: 20px;">🧹</button-->
+                    <button class="btn outline-btn" onclick="openSettingsModal()" style="border-radius: 20px; font-weight: bold; background: var(--card);">
+                        ⚙️ Menu
+                    </button>
                 </div>
             </div>
         </header>
 
-
-        <!-- Conteneur Rétractable des Outils -->
-        <div class="container toolbars-container" id="toolbarsContainer">
-            <!-- 2. BARRE D'ACTIONS PRINCIPALES (Données) -->
-            <div class="toolbar primary-toolbar">
-                <div class="toolbar-group data-actions">
-                    <button class="btn primary-btn" id="loadArchiveBtn">🗄️ Charger Dossier</button>
-                    <button class="btn primary-btn" id="importJsonBtn">📂 Importer JSON</button>
-                    <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
-                    <button class="btn exportjson-btn" id="exportBtn">📤 Exporter Sélection</button>
-                </div>
-                <button class="btn danger-btn" style="font-weight: 500; border:1px dashed;" id="deleteSelectedBtn" title="Supprimer les fichiers locaux sélectionnés">🗑️ Supp. Fichier</button>
-            </div>
-
+        <div class="container toolbars-container" id="toolbarsContainer" style="display: none; justify-content: center;">
             <div class="toolbar filter-toolbar">
                 <div class="toolbar-group nav-group">
-                    <button class="nav-anchor-btn active" onclick="scrollToSection('jsonSection', this)">🔗 Cloud <span class="count-badge" id="numberLink">0</span></button>
-                    <button class="nav-anchor-btn" onclick="scrollToSection('linkedLocalSection', this)">🔄 Liés <span class="count-badge" id="numberLinkedLocalTop">0</span></button>
-                    <button class="nav-anchor-btn" onclick="scrollToSection('localSection', this)">📁 Orphelins <span class="count-badge" id="numberImg">0</span></button>
+                    <button class="nav-anchor-btn active" onclick="scrollToSection('jsonSection', this)">🌐 En ligne <span class="count-badge" id="numberLink">0</span></button>
+                    <button class="nav-anchor-btn" onclick="scrollToSection('linkedLocalSection', this)">🔄 Synchronisées <span class="count-badge" id="numberLinkedLocalTop">0</span></button>
+                    <button class="nav-anchor-btn" onclick="scrollToSection('localSection', this)">💻 Sur mon ordinateur <span class="count-badge" id="numberImg">0</span></button>
                 </div>
                             
                 <div class="toolbar-group sort-group">
                     <select id="sortType" class="modern-select">
-                        <option value="all">Tous les médias</option>
-                        <option value="image">Images uniquement</option>
+                        <option value="all">Tout voir</option>
+                        <option value="image">Photos uniquement</option>
                         <option value="video">Vidéos uniquement</option>
                     </select>
                     <select id="sortDate" class="modern-select">
-                        <option value="date-desc">Plus récents ↓</option>
-                        <option value="date-asc">Plus anciens ↑</option>
+                        <option value="date-desc">Plus récentes en premier ↓</option>
+                        <option value="date-asc">Plus anciennes en premier ↑</option>
                     </select>
                 </div>
 
                 <div class="toolbar-group danger-actions">
-                    <button class="icon-btn" id="compactBtn" title="Activer/Désactiver la vue compacte" onclick="toggleCompactMode()" style="width: auto; padding: 0 15px; border-radius: 20px;">⏹️ Compact</button>
-                    <!--button class="btn secondary outline-btn" id="clearBtn" disabled title="Effacer l'affichage actuel">Effacer Vue</button-->
+                    <button class="nav-anchor-btn" id="compactBtn" title="Réduire la taille des images" onclick="toggleCompactMode()">⏹️ Vue réduite</button>
                 </div>
-
             </div>
         </div> 
-    <div id="loadingStatus">⏳ Analyse de l'archive en cours...</div>
-</div> <!-- FIN DE LA ZONE FIXE -->
-
-
-
-    <!-- RESTE DE LA PAGE (Défilant) -->
-    <div class="container main-container">
         
+        <div id="loadingStatus">⏳ Analyse de vos images en cours...</div>
+    </div> <div id="welcomeScreen" class="container welcome-screen">
+        <div class="welcome-content">
+            <h2>👋 Bienvenue dans vos archives d'images</h2>
+            <p style="font-size: 1.1rem; color: #888; margin-bottom: 30px;">
+                Pour commencer, choisissez comment vous souhaitez retrouver vos créations. C'est simple et rapide !
+            </p>
+            
+            <div class="big-actions">
+                <button class="btn giant-btn primary-btn" id="loadArchiveBtnStart">
+                    <span class="icon">📂</span>
+                    <div class="text">
+                        <strong>Ouvrir mon dossier d'images</strong>
+                        <span>Parcourt le dossier téléchargé sur votre ordinateur</span>
+                    </div>
+                </button>
 
-        <!-- ACCORDÉONS DE LA GALERIE -->
-
-    <div class="accordion-header collapsed" onclick="toggleAccordion('jsonSection', this)">
-            <h2>🔗 Liens Cloud (soft Deleted) <span class="count-badge" id="numberLink2">0</span></h2><span class="accordion-icon">▼</span>
-        </div>
-        <div id="jsonSection" class="accordion-content hidden">
-            <div class="media-grid" id="jsonLinks"></div>
-        </div>
-
-        <div class="accordion-header collapsed" onclick="toggleAccordion('linkedLocalSection', this)">
-            <h2>🔄 Fichiers Locaux (Liés au Cloud) <span class="count-badge" id="numberLinkedLocal">0</span></h2><span class="accordion-icon">▼</span>
-        </div>
-        <div id="linkedLocalSection" class="accordion-content hidden">
-            <div class="media-grid" id="linkedLocalFiles"></div>
-        </div>
-
-        <div class="accordion-header collapsed" onclick="toggleAccordion('localSection', this)">
-            <h2>📁 Fichiers Locaux (Orphelins) <span class="count-badge" id="numberImg2">0</span></h2><span class="accordion-icon">▼</span>
-        </div>
-        <div id="localSection" class="accordion-content hidden">
-            <div class="media-grid" id="localFiles"></div>
+                <button class="btn giant-btn secondary" id="importJsonBtnStart">
+                    <span class="icon">📄</span>
+                    <div class="text">
+                        <strong>Ouvrir mon fichier d'historique</strong>
+                        <span>Charge un fichier de sauvegarde (.json)</span>
+                    </div>
+                </button>
+            </div>
+            
+            <div class="drag-drop-hint" style="margin-top: 30px; opacity: 0.6; font-size: 0.9rem;">
+                💡 Astuce : Vous pouvez aussi simplement glisser-déposer votre fichier .json n'importe où sur cette page.
+            </div>
         </div>
     </div>
 
-    <!-- Modale Profil -->
+
+
+    <div id="appView" style="display: none;">
+        <div class="container main-container">
+            <div class="accordion-header collapsed" onclick="toggleAccordion('jsonSection', this)">
+                <h2>🌐 Images en ligne <span class="count-badge" id="numberLink2">0</span></h2><span class="accordion-icon">▼</span>
+            </div>
+            <div id="jsonSection" class="accordion-content hidden">
+                <div class="media-grid" id="jsonLinks"></div>
+            </div>
+
+            <div class="accordion-header collapsed" onclick="toggleAccordion('linkedLocalSection', this)">
+                <h2>🔄 Images synchronisées <span class="count-badge" id="numberLinkedLocal">0</span></h2><span class="accordion-icon">▼</span>
+            </div>
+            <div id="linkedLocalSection" class="accordion-content hidden">
+                <div class="media-grid" id="linkedLocalFiles"></div>
+            </div>
+
+            <div class="accordion-header collapsed" onclick="toggleAccordion('localSection', this)">
+                <h2>💻 Images sur mon ordinateur <span class="count-badge" id="numberImg2">0</span></h2><span class="accordion-icon">▼</span>
+            </div>
+            <div id="localSection" class="accordion-content hidden">
+                <div class="media-grid" id="localFiles"></div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-container" style="max-width: 400px;">
+            <header class="modal-header">
+                <h3 style="margin: 0;">⚙️ Menu principal</h3>
+                <span class="close-modal" onclick="closeSettingsModal()">×</span>
+            </header>
+            
+            <div class="modal-content" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <button class="btn primary-btn" onclick="closeSettingsModal(); document.getElementById('loadArchiveBtnStart').click();" style="justify-content: center;">
+                    📂 Ouvrir un autre dossier
+                </button>
+
+                <button class="btn secondary" onclick="closeSettingsModal(); openProfileModal();" style="justify-content: center;">
+                    👤 Mon Profil Grok
+                </button>
+
+                <button class="btn secondary" id="toggleThemeMenu" style="justify-content: center;">
+                    ☀️ Passer au thème Clair
+                </button>
+
+                <button class="btn secondary" onclick="window.open('https://www.paypal.com/donate/?hosted_button_id=4SSHF5SWPGAQW', '_blank');" style="justify-content: center;">
+                    ☕ Offrir un café au créateur
+                </button>
+
+                <hr style="width: 100%; border: 0; border-top: 1px dashed var(--border); margin: 10px 0;">
+
+                <button class="btn danger-btn" id="clearSessionBtnMenu" style="justify-content: center;">
+                    🚪 Fermer la session (Déconnexion)
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="profileModal" class="modal-overlay">
         <div class="modal-container">
             <header class="modal-header">
@@ -121,17 +163,6 @@
         </div>
     </div>
 
-    <!-- Lightbox -->
-    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
-        <span class="close-btn" onclick="closeLightbox()">×</span>
-        <button class="nav-btn prev-btn" id="prevBtn" onclick="event.stopPropagation(); prevMedia()">‹</button>
-        <div id="lightboxContent" onclick="event.stopPropagation()"></div>
-        <button class="nav-btn next-btn" id="nextBtn" onclick="event.stopPropagation(); nextMedia()">›</button>
-        <div id="lightboxUrlItem" class="lightbox-footer" onclick="event.stopPropagation()"></div>
-        <div id="lightboxCounter" class="lightbox-counter"></div>
-    </div>
-
-    <!-- Popup Partage / Export -->
     <div id="sharePopup" class="modal-overlay" style="display: none;">
         <div class="modal-container popup-content" style="max-width: 400px; padding: 20px; text-align: center;">
             <h2>✅ Sélection prête !</h2>
@@ -140,16 +171,15 @@
         </div>
     </div>
     
-<!-- Popup prompt modal -->
     <div id="promptModal" class="modal-overlay">
         <div class="modal-container" style="max-width: 500px;">
             <header class="modal-header" style="padding: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0;">📝 Lecture du Prompt</h3>
+                <h3 style="margin: 0;">📝 Lecture du texte (Prompt)</h3>
                 <span class="close-modal" onclick="closePromptModal()">×</span>
             </header>
             <div class="modal-content" style="padding: 20px;">
                 <div id="fullPromptText" style="background: rgba(0,0,0,0.1); padding: 15px; border-radius: 8px; font-size: 0.95rem; line-height: 1.5; max-height: 300px; overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--border);">
-                    </div>
+                </div>
                 <div style="margin-top: 20px; display: flex; gap: 10px;">
                     <button id="downloadPromptConfirmBtn" class="btn action-btn" style="flex: 1; justify-content: center;">💾 Télécharger le .txt</button>
                     <button class="btn secondary" onclick="closePromptModal()" style="flex: 1; justify-content: center;">Fermer</button>
@@ -160,9 +190,18 @@
 
 
 
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <span class="close-btn" onclick="closeLightbox()">×</span>
+        <button class="nav-btn prev-btn" id="prevBtn" onclick="event.stopPropagation(); prevMedia()">‹</button>
+        <div id="lightboxContent" onclick="event.stopPropagation()"></div>
+        <button class="nav-btn next-btn" id="nextBtn" onclick="event.stopPropagation(); nextMedia()">›</button>
+        <div id="lightboxUrlItem" class="lightbox-footer" onclick="event.stopPropagation()"></div>
+        <div id="lightboxCounter" class="lightbox-counter"></div>
+    </div>
+
     <div id="dropZoneOverlay" class="dropzone-overlay">
         <span class="dropzone-icon">📂</span>
-        <h2>Lâchez votre fichier JSON ici</h2>
+        <h2>Lâchez votre fichier d'historique ici</h2>
     </div>
 
     <div id="scrollMarker" class="scroll-marker" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Remonter en haut">
@@ -172,6 +211,25 @@
         <span style="opacity:0.3; margin: 0 8px;">|</span>
         <span>🔼</span>
     </div>
+
+    <div id="floatingActionBar" class="floating-action-bar">
+        <div class="fab-content">
+            <div class="fab-info">
+                <span class="fab-count" id="selectedCountText">0</span>
+                <span class="fab-text">image(s) sélectionnée(s)</span>
+            </div>
+            <div class="fab-buttons">
+                <button class="btn action-btn" id="fabExportBtn">📥 Sauvegarder</button>
+                <button class="btn danger-btn" id="fabDeleteBtn">🗑️ Supprimer</button>
+                <button class="btn secondary" id="fabCancelBtn">❌ Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="jsonFileInputStart" accept=".json" style="display: none;">
+    <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
+    <button id="exportBtn" style="display:none;"></button>
+    <button id="deleteSelectedBtn" style="display:none;"></button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="script.js"></script>
