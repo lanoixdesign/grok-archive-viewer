@@ -38,7 +38,7 @@ body {
     z-index: 150;
     background: var(--bg);
     color: var(--visited);
-    padding: 12px 12px 0px 12px; 
+    padding: 12px; 
     text-align: center;
     font-weight: bold;
     border-radius: 8px;
@@ -47,49 +47,87 @@ body {
     /*box-shadow: 0 4px 15px rgba(0,0,0,0.4);*/
 }
 
-
-@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-
+/* ==========================================
+   OPTIMISATION MOBILE (Smartphones & Tablettes)
+========================================== */
 @media (max-width: 768px) {
-    .header-container { flex-direction: column; gap: 15px; } /* Ajustement Mobile */
-    .header-actions { width: 100%; justify-content: center; flex-wrap: wrap; } /* Ajustement Mobile */
-    .toolbar-group { width: 100%; justify-content: space-between; }
-    .btn { flex-grow: 1; justify-content: center; }
-    .modern-select { flex-grow: 1; }
+    /* 1. En-tête : Titre et Menu sur une seule ligne fluide */
+    .header-container { flex-direction: row; gap: 10px; padding: 10px 15px; flex-wrap: nowrap; }
+    .logo { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .header-actions .btn { padding: 6px 12px; font-size: 0.85rem; white-space: nowrap; }
+
+    /* 2. Écran d'accueil adapté aux petits écrans */
+    .welcome-content { padding: 30px 20px; border-radius: 16px; border-width: 1px; width: 100%; box-sizing: border-box; }
+    .welcome-content h2 { font-size: 1.4rem; }
+    .giant-btn { flex-direction: column; text-align: center; gap: 10px; padding: 15px; }
+    .giant-btn .icon { margin-right: 0; font-size: 2rem; }
+    .giant-btn .text strong { font-size: 1.1rem; }
+
+    /* 3. Barres d'outils (Filtres et Tris empilés) */
+    .toolbar { padding: 10px; gap: 10px; border-radius: 8px; flex-direction: column; align-items: stretch; }
+    .toolbar-group { width: 100%; justify-content: stretch; gap: 5px; }
+    .nav-anchor-btn { flex: 1; justify-content: center; padding: 8px 5px; font-size: 0.75rem; flex-wrap: wrap; text-align: center; }
+    .nav-anchor-btn .count-badge { margin-top: 2px; }
+    .modern-select { flex: 1; padding: 8px; font-size: 0.85rem; width: 100%; }
+    
+    /* 4. Grille d'images (1 seule grande colonne) */
+    .media-grid { grid-template-columns: 1fr; gap: 15px; padding: 10px 0; }
+    .media-container { height: auto; aspect-ratio: 4/3; } 
+    
+    /* 5. CORRECTION : Barre flottante bien cachée au fond ! */
+    .floating-action-bar { bottom: -350px; } /* On la descend très bas pour être sûr qu'elle ne dépasse pas */
+    .floating-action-bar.visible { bottom: 15px; } /* Elle remonte à sa place quand elle est activée */
+    .fab-content { 
+        flex-direction: column; gap: 12px; padding: 15px; 
+        border-radius: 20px; width: 92%; max-width: 350px; text-align: center; 
+    }
+    .fab-info { width: 100%; justify-content: center; }
+    .fab-text { font-size: 1rem; }
+    .fab-buttons { 
+        width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; 
+    }
+    #fabCancelBtn { grid-column: span 2; padding: 12px; font-weight: bold; }
+    .fab-buttons .btn { padding: 10px; font-size: 0.85rem; }
+
+    /* 6. Accordéons aérés (Pour ne pas écraser le bouton "Tout sélectionner") */
+    .accordion-header { flex-wrap: wrap; gap: 10px; padding: 12px 15px; }
+    .accordion-header h2 { font-size: 1.1rem; flex-wrap: wrap; line-height: 1.5; }
+    .accordion-header label { margin-left: 0 !important; width: 100%; justify-content: center; margin-top: 5px; }
+
+    /* 7. Lightbox (Visionneuse en plein écran) */
+    .nav-btn { padding: 15px 10px; font-size: 20px; background: rgba(0,0,0,0.5); }
+    .prev-btn { left: 5px; }
+    .next-btn { right: 5px; }
+    .lightbox-footer { bottom: 15px; width: 95%; padding: 10px; flex-direction: column; }
+    .lightbox-footer .btn { width: 100%; justify-content: center; margin-bottom: 5px; }
+    .danger-actions .icon-btn { width: 100%; text-align: center; justify-content: center; }
 }
 
-/* Animation de pulsation uniquement pour les conteneurs d'images */
 @keyframes placeholderPulse {
     0% { background-color: var(--card); }
     50% { background-color: var(--border); }
     100% { background-color: var(--card); }
 }
 
-/* On n'applique l'animation qu'aux conteneurs ayant la classe .is-image */
 .media-container.is-image {
     background-color: var(--card);
     animation: placeholderPulse 1.5s infinite ease-in-out;
 }
 
-/* Ajoute ou modifie ces règles dans ton style.css */
 .media-container img, 
 .media-container video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Réduit la qualité de rendu pour économiser les ressources GPU/RAM */
     image-rendering: low-quality; 
-    filter: contrast(95%); /* Un léger filtre réduit parfois la charge de rendu */
+    filter: contrast(95%); 
 }
 
 .media-card {
-    /* On réduit la taille mémoire des ombres qui sont gourmandes */
     box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
 }
 
-.media-container img.loaded {
-    opacity: 1;
-}
+.media-container img.loaded { opacity: 1; }
 
 /* ==========================================
    LAYOUT PRINCIPAL & ZONE FIXE
@@ -101,13 +139,11 @@ body {
     background-color: var(--bg);
     padding-bottom: 15px;
     border-bottom: 1px solid var(--border);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5); /* Ombre pour l'effet de superposition */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
     transition: background-color 0.3s;
 }
 
-body.light .sticky-top-area {
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-}
+body.light .sticky-top-area { box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
 
 .main-header {
     background-color: var(--card);
@@ -115,13 +151,15 @@ body.light .sticky-top-area {
     padding: 15px 0;
 }
 
-/* Conteneur rétractable (Animation fluide) */
 .toolbars-container {
     padding-top: 20px;
     max-height: 1000px;
     opacity: 1;
     overflow: hidden;
     transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 .toolbars-container.collapsed {
@@ -141,17 +179,8 @@ body.light .sticky-top-area {
     padding: 0 20px;
 }
 
-.logo {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: bold;
-}
-
-.header-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
+.logo { margin: 0; font-size: 1.5rem; font-weight: bold; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
 
 .main-container {
     max-width: 1200px;
@@ -163,60 +192,24 @@ body.light .sticky-top-area {
    BOUTONS ET TOOLBARS
 ========================================== */
 .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-bottom: 20px;
-    background: var(--card);
-    padding: 15px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    justify-content: space-between;
-    align-items: center;
+    display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;
+    background: var(--card); padding: 15px; border-radius: 12px;
+    border: 1px solid var(--border); justify-content: space-between; align-items: center;
 }
 
-.filter-toolbar {
-    background: transparent;
-    border: none;
-    padding: 0;
-    margin-bottom: 0; /* Ajustement car le padding gère déjà l'espacement */
-}
+.filter-toolbar { background: transparent; border: none; padding: 0; margin-bottom: 0; }
+.toolbar-group { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
-.toolbars-container {
-    align-items: center;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-/* --- (Gardez tout le reste de votre CSS tel quel) --- */
-.toolbar-group {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-
-
-/* Styles de boutons modernisés */
 .btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+    padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;
+    font-weight: 600; font-size: 0.9rem; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 8px;
 }
 
 .grok-link-btn {
     background: var(--cloud); color: #000 !important; border: none; border-radius: 8px;
-    padding: 10px; font-weight: 800;  cursor: pointer; text-align: center;
-    text-decoration: none; display: inline;
-    padding: 10px 20px;
+    padding: 10px; font-weight: 800; cursor: pointer; text-align: center;
+    text-decoration: none; display: inline; padding: 10px 20px;
 }
 
 .primary-btn { background: var(--accent); color: var(--bg); }
@@ -231,112 +224,110 @@ body.light .sticky-top-area {
 .danger-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
 .danger-btn:hover { background: var(--danger); color: #fff; }
 
-.outline-btn { border: 1px dashed var(--border); opacity: 0.7; }
-.outline-btn:hover:not(:disabled) { opacity: 1; border-color: var(--text); }
+.outline-btn { border: 1px solid var(--border); }
+.outline-btn:hover:not(:disabled) { border-color: var(--text); }
 .outline-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-.exportjson-btn {    
-    background: #f0f8ff00;
-    border: 1px dashed green;
-    color: var(--visited);
-    font-weight: 500;
-
-}
+.exportjson-btn { background: transparent; border: 1px dashed green; color: var(--visited); font-weight: 500; }
 .exportjson-btn:hover { border-color: var(--accent); }
 
-/* Boutons icônes de l'en-tête */
 .icon-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    cursor: pointer;
-    transition: all 0.2s;
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 1.2rem; cursor: pointer; transition: all 0.2s;
 }
 .icon-btn:hover { background: var(--border); }
 .icon-btn.warning { border-color: var(--warning); color: var(--warning); }
 .icon-btn.warning:hover { background: rgba(255, 165, 0, 0.1); }
-.icon-btn.autoplay-btn { width: auto; padding: 0 15px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
 
-/* Selecteurs & Badges */
 .modern-select {
-    padding: 10px 15px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--text);
-    font-size: 0.9rem;
-    cursor: pointer;
-    outline: none;
+    padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font-size: 0.9rem; cursor: pointer; outline: none;
 }
 .modern-select:focus { border-color: var(--accent); }
 
 .nav-anchor-btn {
-    background: var(--card);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 15px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: 0.2s;
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: bold;
+    display: flex; align-items: center; gap: 8px; transition: 0.2s;
 }
 .nav-anchor-btn:hover { border-color: var(--accent); }
+.nav-anchor-btn.active { background-color: var(--accent); color: var(--bg); border-color: var(--accent); }
+.nav-anchor-btn.active .count-badge { background: rgba(0, 0, 0, 0.2); color: var(--bg); }
+body.light .nav-anchor-btn.active .count-badge { background: rgba(255, 255, 255, 0.4); color: var(--bg); }
 
-/* État visuel du bouton actif */
-.nav-anchor-btn.active {
-    background-color: var(--accent);
-    color: var(--bg);
-    border-color: var(--accent);
-}
-
-/* On ajuste la couleur du petit badge quand le bouton est actif pour qu'il reste lisible */
-.nav-anchor-btn.active .count-badge {
-    background: rgba(0, 0, 0, 0.2);
-    color: var(--bg);
-}
-
-body.light .nav-anchor-btn.active .count-badge {
-    background: rgba(255, 255, 255, 0.4);
-    color: var(--bg);
-}
-
-.count-badge {
-    background: rgba(255,255,255,0.1);
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-}
+.count-badge { background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
 body.light .count-badge { background: rgba(0,0,0,0.1); }
+
+/* ==========================================
+   ÉCRAN D'ACCUEIL (ONBOARDING)
+========================================== */
+.welcome-screen {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 70vh; animation: fadeIn 0.5s ease;
+}
+
+.welcome-content {
+    background: var(--card); padding: 50px; border-radius: 24px;
+    border: 2px dashed var(--border); max-width: 600px; text-align: center;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+body.light .welcome-content { box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
+.welcome-content h2 { margin-top: 0; font-size: 2rem; color: var(--accent); }
+.big-actions { display: flex; flex-direction: column; gap: 15px; }
+
+.giant-btn {
+    display: flex; align-items: center; text-align: left; padding: 20px 25px;
+    border-radius: 16px; background: var(--bg); border: 1px solid var(--border);
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; cursor: pointer;
+}
+.giant-btn.primary-btn { background: var(--accent); color: var(--bg); border: none; }
+.giant-btn .icon { font-size: 2.5rem; margin-right: 20px; }
+.giant-btn .text strong { display: block; font-size: 1.2rem; margin-bottom: 5px; }
+.giant-btn .text span { font-size: 0.9rem; font-weight: normal; opacity: 0.8; }
+.giant-btn:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ==========================================
+   BARRE FLOTTANTE D'ACTION (MAGIQUE)
+========================================== */
+.floating-action-bar {
+    position: fixed; bottom: -100px; left: 0; width: 100%;
+    display: flex; justify-content: center; z-index: 9999;
+    transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none;
+}
+
+.floating-action-bar.visible { bottom: 30px; pointer-events: auto; }
+
+.fab-content {
+    background: var(--card); border: 2px solid var(--accent); padding: 15px 30px;
+    border-radius: 50px; display: flex; align-items: center; gap: 30px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+}
+
+body.light .fab-content { box-shadow: 0 15px 35px rgba(0,0,0,0.15); }
+
+.fab-info { display: flex; align-items: center; gap: 10px; }
+
+.fab-count {
+    background: var(--accent); color: var(--bg); font-size: 1.2rem; font-weight: bold;
+    width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+}
+
+.fab-text { font-weight: 600; font-size: 1.1rem; }
+.fab-buttons { display: flex; gap: 10px; }
 
 /* ==========================================
    GALERIE & CARTES
 ========================================== */
-.media-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    padding: 20px 0;
-}
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 20px 0; }
 
 .media-card {
-    background: var(--card);
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    transition: all 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    position: relative; /* <-- CORRECTION : Garde les badges attachés à la carte */
+    background: var(--card); border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border); transition: all 0.3s ease;
+    display: flex; flex-direction: column; position: relative;
 }
 .media-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
 .media-card.visited { border-color: var(--visited) !important; }
@@ -350,48 +341,21 @@ body.light .count-badge { background: rgba(0,0,0,0.1); }
 }
 .media-card.visited.viewed::after { content: "✓ VISITÉS"; background: var(--visited); color: #000; }
 
-.media-container {
-    height: 250px;
-    background: #000;
-    position: relative;
-    cursor: pointer;
-}
+.media-container { height: 250px; background: #000; position: relative; cursor: pointer; }
+
 .badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 0.7rem;
-    font-weight: bold;
-    z-index: 2;
-    background: rgba(0,0,0,0.6);
-    color: white;
+    position: absolute; top: 10px; left: 10px; padding: 4px 8px; border-radius: 6px;
+    font-size: 0.7rem; font-weight: bold; z-index: 2; background: rgba(0,0,0,0.6); color: white;
 }
 .badge.cloud { background: var(--cloud); color: #fff; }
 .badge.local { background: #ffaa00; color: #000; }
-
-.info {
-    padding: 15px;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-}
 
 /* ==========================================
    ACCORDÉONS & UTILITAIRES
 ========================================== */
 .accordion-header {
-    background: var(--card);
-    padding: 15px 20px;
-    border-radius: 12px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid var(--border);
-    margin-top: 20px;
-    transition: 0.2s;
+    background: var(--card); padding: 15px 20px; border-radius: 12px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); margin-top: 20px; transition: 0.2s;
 }
 .accordion-header:hover { border-color: var(--accent); }
 .accordion-header h2 { margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
@@ -399,8 +363,8 @@ body.light .count-badge { background: rgba(0,0,0,0.1); }
 .accordion-header.collapsed .accordion-icon { transform: rotate(-90deg); }
 .hidden { display: none !important; }
 
-/* UI Drag & Drop et Checkbox */
 input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited); cursor: pointer; }
+
 .dropzone-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0, 204, 136, 0.15); backdrop-filter: blur(5px); z-index: 9999; border: 4px dashed var(--visited); align-items: center; justify-content: center; flex-direction: column; pointer-events: none;
 }
@@ -409,7 +373,8 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited)
 
 /* Modales & Lightbox */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-.modal-container { background: var(--card); border-radius: 12px; width: 90%; max-width: 600px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.modal-container { background: var(--card); padding: 20px; border-radius: 12px; width: 90%; max-width: 600px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.modal-header {border-bottom: 1px solid var(--border);padding-bottom: 15px;display: flex;justify-content: space-between;}
 .close-modal { cursor: pointer; font-size: 1.5rem; transition: 0.2s; }
 .close-modal:hover { color: var(--danger); }
 .session-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
@@ -425,46 +390,17 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited)
 .lightbox-footer { position: absolute; bottom: 75px; width: 100%; text-align: center; }
 .lightbox-counter { position: absolute; bottom: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
 
-
 /* ==========================================
    MODE COMPACT
 ========================================== */
-.media-grid.compact {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 8px;
-}
-
-.media-grid.compact .media-card {
-    border-radius: 8px;
-}
-
-.media-grid.compact .media-container {
-    height: 100px;
-}
-
-.media-grid.compact .info {
-    display: none !important; /* Cache tout le texte, les boutons et la checkbox */
-}
-
-.media-grid.compact .badge {
-    transform: scale(0.7); /* Réduit un peu la taille des badges 'Vidéo' / 'Photo' */
-    transform-origin: top left;
-}
-
-/* Nettoyage des badges en mode compact */
-.media-grid.compact .warning-text {
-    display: none; /* Cache le texte "Archive Latente" */
-}
-
-.media-grid.compact .type-badge {
-    display: none; /* Cache "Photo/Vidéo" pour ne laisser que la place au ⚠️ */
-}
-
-.media-grid.compact .warning-badge {
-    padding: 2px 5px; /* Rend la bulle du ⚠️ toute petite */
-    font-size: 14px;  /* Ajuste la taille de l'emoji */
-}
-
+.media-grid.compact { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+.media-grid.compact .media-card { border-radius: 8px; }
+.media-grid.compact .media-container { height: 100px; }
+.media-grid.compact .info { display: none !important; }
+.media-grid.compact .badge { transform: scale(0.7); transform-origin: top left; }
+.media-grid.compact .warning-text { display: none; }
+.media-grid.compact .type-badge { display: none; }
+.media-grid.compact .warning-badge { padding: 2px 5px; font-size: 14px; }
 
 /* ==========================================
    MARQUEUR DE SCROLL
@@ -477,13 +413,4 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited)
     transition: transform 0.3s, background 0.2s; display: flex; align-items: center;
 }
 .scroll-marker.visible { transform: translateX(-50%) translateY(0); }
-
-.scroll-marker.visible {
-    transform: translateX(-50%) translateY(0); /* Apparaît */
-}
-
-.scroll-marker:hover {
-    background: var(--accent);
-    color: var(--bg);
-    border-color: var(--accent);
-}
+.scroll-marker:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
