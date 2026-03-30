@@ -11,20 +11,29 @@
     
     <div class="sticky-top-area">
         
-        <header class="main-header">
+<header class="main-header">
             <div class="container header-container">
-                <h1 class="logo">🗄️ Mes Archives Grok</h1>
+                <h1 class="logo">🗄️ Grok Imagine Archive</h1>
                 <div class="header-actions">
-                    <!--button class="btn danger-btn" id="clearSessionBtnMenu" style="justify-content: center; border-radius: 20px;">🧹</button-->
-                    <button class="btn outline-btn" onclick="openSettingsModal()" style="border-radius: 20px; font-weight: bold; background: var(--card);">
+                    
+
+                    <button class="btn outline-btn" id="headerCompactBtn" onclick="toggleCompactModeCommon()" title="Changer l'affichage" style="border-radius: 20px; font-weight: bold; background: var(--card);">
+                        <span id="compactIcon">⏹️</span>
+                        <span class="desktop-only" id="compactText" style="margin-left: 5px;">Compact</span>
+                    </button>
+                    
+                    <button class="btn secondary outline-btn desktop-only" id="desktopAutoPlayBtn" style="border-radius: 20px; background: var(--card);">
+                        ▶️ Vidéos auto
+                    </button>
+                    <button class="btn outline-btn desktop-only" onclick="openSettingsModal()" style="border-radius: 20px; font-weight: bold; background: var(--card);">
                         ⚙️ Menu
                     </button>
                 </div>
             </div>
         </header>
 
-        <div class="container toolbars-container" id="toolbarsContainer" style="display: none; justify-content: center;">
-            <div class="toolbar filter-toolbar">
+        <div class="container toolbars-container pc-tools" id="toolbarsContainerPC" style="display: none;">
+            <div class="toolbar filter-toolbar" style="justify-content: space-between !important;display: flex;">
                 <div class="toolbar-group nav-group">
                     <button class="nav-anchor-btn active" onclick="scrollToSection('jsonSection', this)">🌐 En ligne <span class="count-badge" id="numberLink">0</span></button>
                     <button class="nav-anchor-btn" onclick="scrollToSection('linkedLocalSection', this)">🔄 Synchronisées <span class="count-badge" id="numberLinkedLocalTop">0</span></button>
@@ -32,19 +41,15 @@
                 </div>
                             
                 <div class="toolbar-group sort-group">
-                    <select id="sortType" class="modern-select">
+                    <select id="sortTypePC" class="modern-select sortType">
                         <option value="all">Tout voir</option>
                         <option value="image">Photos uniquement</option>
                         <option value="video">Vidéos uniquement</option>
                     </select>
-                    <select id="sortDate" class="modern-select">
+                    <select id="sortDatePC" class="modern-select sortDate">
                         <option value="date-desc">Plus récentes en premier ↓</option>
                         <option value="date-asc">Plus anciennes en premier ↑</option>
                     </select>
-                </div>
-
-                <div class="toolbar-group danger-actions">
-                    <button class="nav-anchor-btn" id="compactBtn" title="Réduire la taille des images" onclick="toggleCompactMode()">⏹️ Vue réduite</button>
                 </div>
             </div>
         </div> 
@@ -109,6 +114,49 @@
     </div>
 
 
+
+    <div id="toolbarModal" class="modal-overlay bottom-sheet-modal">
+        <div class="modal-container">
+            <header class="modal-header">
+                <h3>🔧 Ajuster la vue</h3>
+                <span class="close-modal" id="closeToolsBtn">×</span>
+            </header>
+            
+            <div class="modal-content">
+                <div class="mobile-toolbar-group">
+                    <h4>📂 Catégories</h4>
+                    <div class="nav-group-mobile">
+                        <button class="nav-anchor-btn active" onclick="scrollToSectionMobile('jsonSection', this)">🌐 En ligne</button>
+                        <button class="nav-anchor-btn" onclick="scrollToSectionMobile('linkedLocalSection', this)">🔄 Synchronisées</button>
+                        <button class="nav-anchor-btn" onclick="scrollToSectionMobile('localSection', this)">💻 Ordinateur</button>
+                    </div>
+                </div>
+
+                <div class="mobile-toolbar-group">
+                    <h4>🔍 Type de média</h4>
+                    <select id="sortTypeMobile" class="modern-select sortType">
+                        <option value="all">Tout voir</option>
+                        <option value="image">Photos uniquement</option>
+                        <option value="video">Vidéos uniquement</option>
+                    </select>
+                </div>
+
+                <div class="mobile-toolbar-group">
+                    <h4>📅 Ordre d'affichage</h4>
+                    <select id="sortDateMobile" class="modern-select sortDate">
+                        <option value="date-desc">Plus récentes en premier ↓</option>
+                        <option value="date-asc">Plus anciennes en premier ↑</option>
+                    </select>
+                </div>
+
+                <div class="mobile-toolbar-group" style="margin-top: 15px;">
+                    <button class="btn secondary outline-btn compactBtn" id="compactBtnMobile" title="Réduire la taille des images" onclick="toggleCompactMode()" style="width: 100%; justify-content: center; font-size: 1rem; padding: 12px;">⏹️ Activer la Vue réduite</button>
+                </div>
+
+                <button class="btn giant-btn action-btn close-tools-btn" id="closeToolsBtnBottom">Valider</button>
+            </div>
+        </div>
+    </div>
 
     <div id="settingsModal" class="modal-overlay">
         <div class="modal-container" style="max-width: 400px;">
@@ -204,12 +252,17 @@
         <h2>Lâchez votre fichier d'historique ici</h2>
     </div>
 
-    <div id="scrollMarker" class="scroll-marker" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Remonter en haut">
+<div id="scrollMarker" class="scroll-marker" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Remonter en haut" style="display: flex; align-items: center;">
         <span id="scrollDate">📅 --/--/----</span>
         <span style="opacity:0.3; margin: 0 8px;">|</span>
         <span id="scrollProgress">0%</span> 
         <span style="opacity:0.3; margin: 0 8px;">|</span>
         <span>🔼</span>
+        
+        <span style="opacity:0.3; margin: 0 8px;">|</span>
+        <span onclick="event.stopPropagation(); refreshGalleryView();" title="Recharger l'affichage" style="font-size: 1.1rem; cursor: pointer; padding: 0 4px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+            🔄
+        </span>
     </div>
 
     <div id="floatingActionBar" class="floating-action-bar">
@@ -231,6 +284,20 @@
     <button id="exportBtn" style="display:none;"></button>
     <button id="deleteSelectedBtn" style="display:none;"></button>
 
+<nav class="mobile-bottom-nav">
+        <button class="nav-item" id="mobileAutoPlayBtn">
+            <span class="icon">▶️</span>
+            <span class="label">Auto</span>
+        </button>
+        <button class="nav-item" onclick="openToolbarModal()">
+            <span class="icon">🔧</span>
+            <span class="label">Outils</span>
+        </button>
+        <button class="nav-item" onclick="openSettingsModal()">
+            <span class="icon">⚙️</span>
+            <span class="label">Menu</span>
+        </button>
+    </nav>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="script.js"></script>
 </body>
