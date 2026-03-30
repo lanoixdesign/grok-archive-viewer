@@ -51,83 +51,124 @@ body {
    OPTIMISATION MOBILE (Smartphones & Tablettes)
 ========================================== */
 @media (max-width: 768px) {
-    /* 1. En-tête : Titre et Menu sur une seule ligne fluide */
-    .header-container { flex-direction: row; gap: 10px; padding: 10px 15px; flex-wrap: nowrap; }
-    .logo { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .header-actions .btn { padding: 6px 12px; font-size: 0.85rem; white-space: nowrap; }
+    /* 1. Header & Layout */
+    .header-container { flex-direction: row; gap: 10px; padding: 0 15px; }
+    .logo { font-size: 1.1rem; }
+    .main-container { padding: 0 10px; }
 
-    /* 2. Écran d'accueil adapté aux petits écrans */
+    /* 2. Écran d'accueil adapté */
     .welcome-content { padding: 30px 20px; border-radius: 16px; border-width: 1px; width: 100%; box-sizing: border-box; }
     .welcome-content h2 { font-size: 1.4rem; }
     .giant-btn { flex-direction: column; text-align: center; gap: 10px; padding: 15px; }
     .giant-btn .icon { margin-right: 0; font-size: 2rem; }
     .giant-btn .text strong { font-size: 1.1rem; }
 
-    /* 3. Barres d'outils (Filtres et Tris empilés) */
-    .toolbar { padding: 10px; gap: 10px; border-radius: 8px; flex-direction: column; align-items: stretch; }
-    .toolbar-group { width: 100%; justify-content: stretch; gap: 5px; }
-    .nav-anchor-btn { flex: 1; justify-content: center; padding: 8px 5px; font-size: 0.75rem; flex-wrap: wrap; text-align: center; }
-    .nav-anchor-btn .count-badge { margin-top: 2px; }
-    .modern-select { flex: 1; padding: 8px; font-size: 0.85rem; width: 100%; }
-    
-    /* 4. Grille d'images (1 seule grande colonne) */
-    .media-grid { grid-template-columns: 1fr; gap: 15px; padding: 10px 0; }
-    .media-container { height: auto; aspect-ratio: 4/3; } 
-    
-    /* 5. CORRECTION : Barre flottante bien cachée au fond ! */
-    .floating-action-bar { bottom: -350px; } /* On la descend très bas pour être sûr qu'elle ne dépasse pas */
-    .floating-action-bar.visible { bottom: 15px; } /* Elle remonte à sa place quand elle est activée */
+    /* 3. Cache les outils PC complétement */
+    .pc-tools { display: none !important; }
+
+    /* 4. Structure de la Modale "Ajuster la vue" (Bottom Sheet) */
+/* En-tête de la modale centré */
+    .bottom-sheet-modal .modal-header {
+        border-bottom: 1px solid var(--border);
+        padding: 15px 20px;
+        display: flex;
+        justify-content: center; /* Centre le titre */
+        position: relative;
+    }
+    .bottom-sheet-modal .modal-header h3 { margin: 0; }
+    .bottom-sheet-modal .close-modal {
+        position: absolute;
+        right: 20px; /* Garde la croix à droite */
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .bottom-sheet-modal .modal-content {
+        padding: 20px;
+        overflow-y: auto;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Groupes d'outils mobile centrés */
+    .mobile-toolbar-group {
+        border-bottom: 1px dashed var(--border);
+        padding-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* Centre les éléments horizontalement */
+        text-align: center;
+    }
+    .mobile-toolbar-group h4 {
+        margin: 0 0 10px 0;
+        color: var(--accent);
+        font-size: 1.1rem;
+        width: 100%;
+    }
+
+    /* Navigation mobile centrée */
+    .nav-group-mobile {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+    }
+    .nav-group-mobile .nav-anchor-btn {
+        width: 100%;
+        justify-content: center; /* Centre le texte du bouton */
+        text-align: center;
+        border-radius: 8px;
+        padding: 12px;
+        background: rgba(255,255,255,0.05);
+    }
+
+    .close-tools-btn {
+        width: 100%;
+        margin-top: auto;
+        justify-content: center;
+        padding: 15px;
+        border-radius: 12px;
+    }
+
+    /* 5. Inversion : Floating Action Bar sticks to Top on Mobile */
+    .floating-action-bar.visible {
+        bottom: auto; /* Annule la position du bas */
+        top: 70px; /* Descend sous le header mobile */
+    }
+
     .fab-content { 
         flex-direction: column; gap: 12px; padding: 15px; 
         border-radius: 20px; width: 92%; max-width: 350px; text-align: center; 
     }
     .fab-info { width: 100%; justify-content: center; }
-    .fab-text { font-size: 1rem; }
     .fab-buttons { 
         width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; 
     }
     #fabCancelBtn { grid-column: span 2; padding: 12px; font-weight: bold; }
-    .fab-buttons .btn { padding: 10px; font-size: 0.85rem; }
 
-    /* 6. Accordéons aérés (Pour ne pas écraser le bouton "Tout sélectionner") */
-    .accordion-header { flex-wrap: wrap; gap: 10px; padding: 12px 15px; }
-    .accordion-header h2 { font-size: 1.1rem; flex-wrap: wrap; line-height: 1.5; }
+    /* 6. Grille d'images (1 seule colonne) */
+    .media-grid { grid-template-columns: 1fr; gap: 15px; padding: 10px 0; }
+    .media-container { height: auto; aspect-ratio: 4/3; }
+
+    /* 7. Accordéons aérés */
+    .accordion-header { gap: 10px; padding: 12px 15px; flex-wrap: wrap; }
     .accordion-header label { margin-left: 0 !important; width: 100%; justify-content: center; margin-top: 5px; }
 
-    /* 7. Lightbox (Visionneuse en plein écran) */
-    .nav-btn { padding: 15px 10px; font-size: 20px; background: rgba(0,0,0,0.5); }
-    .prev-btn { left: 5px; }
-    .next-btn { right: 5px; }
-    .lightbox-footer { bottom: 15px; width: 95%; padding: 10px; flex-direction: column; }
-    .lightbox-footer .btn { width: 100%; justify-content: center; margin-bottom: 5px; }
-    .danger-actions .icon-btn { width: 100%; text-align: center; justify-content: center; }
+    /* Boutons en-tête qui dépassaient */
+    .mobile-tools-btn, .header-actions .btn { display: inline-flex; }
+
+    /* Lightbox */
+    .nav-btn { padding: 15px 10px; background: rgba(0,0,0,0.5); }
+    .lightbox-footer { width: 95%; flex-direction: column; }
+    .lightbox-footer .btn { width: 100%; justify-content: center; }
 }
 
-@keyframes placeholderPulse {
-    0% { background-color: var(--card); }
-    50% { background-color: var(--border); }
-    100% { background-color: var(--card); }
+/* Sur PC, on cache le bouton outils mobile */
+@media (min-width: 769px) {
+    .mobile-tools-btn { display: none !important; }
 }
-
-.media-container.is-image {
-    background-color: var(--card);
-    animation: placeholderPulse 1.5s infinite ease-in-out;
-}
-
-.media-container img, 
-.media-container video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    image-rendering: low-quality; 
-    filter: contrast(95%); 
-}
-
-.media-card {
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
-}
-
-.media-container img.loaded { opacity: 1; }
 
 /* ==========================================
    LAYOUT PRINCIPAL & ZONE FIXE
@@ -218,7 +259,7 @@ body.light .sticky-top-area { box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
 .secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .secondary:hover { border-color: var(--accent); }
 
-.action-btn { background: var(--visited); color: #000; }
+.action-btn { background: var(--visited) !important; color: #000; }
 .action-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
 
 .danger-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
@@ -243,6 +284,8 @@ body.light .sticky-top-area { box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
 .modern-select {
     padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--card); color: var(--text); font-size: 0.9rem; cursor: pointer; outline: none;
+    text-align: center; /* Centre le texte */
+    text-align-last: center; /* Centre l'option sélectionnée */
 }
 .modern-select:focus { border-color: var(--accent); }
 
@@ -264,7 +307,7 @@ body.light .count-badge { background: rgba(0,0,0,0.1); }
 ========================================== */
 .welcome-screen {
     display: flex; justify-content: center; align-items: center;
-    min-height: 70vh; animation: fadeIn 0.5s ease;
+    min-height: 80vh; animation: fadeIn 0.5s ease;
 }
 
 .welcome-content {
@@ -292,32 +335,124 @@ body.light .welcome-content { box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
 
 /* ==========================================
    BARRE FLOTTANTE D'ACTION (MAGIQUE)
+   Par défaut en haut pour descendre sur mobile
 ========================================== */
 .floating-action-bar {
-    position: fixed; bottom: -100px; left: 0; width: 100%;
-    display: flex; justify-content: center; z-index: 9999;
-    transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none;
+    position: fixed;
+    top: -200px; /* Cachée en haut par défaut */
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    z-index: 9999;
+    transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Effet rebond doux */
+    pointer-events: none; /* Ne bloque pas le clic quand elle est cachée */
 }
 
-.floating-action-bar.visible { bottom: 30px; pointer-events: auto; }
+.floating-action-bar.visible {
+    top: 70px; /* Descend sous le header sur mobile */
+    pointer-events: auto;
+}
 
 .fab-content {
-    background: var(--card); border: 2px solid var(--accent); padding: 15px 30px;
-    border-radius: 50px; display: flex; align-items: center; gap: 30px;
+    background: var(--card);
+    border: 2px solid var(--accent);
+    padding: 15px 30px;
+    border-radius: 50px; /* Forme de pilule très douce */
+    display: flex;
+    align-items: center;
+    gap: 30px;
     box-shadow: 0 15px 35px rgba(0,0,0,0.5);
 }
 
-body.light .fab-content { box-shadow: 0 15px 35px rgba(0,0,0,0.15); }
-
-.fab-info { display: flex; align-items: center; gap: 10px; }
-
-.fab-count {
-    background: var(--accent); color: var(--bg); font-size: 1.2rem; font-weight: bold;
-    width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+body.light .fab-content {
+    box-shadow: 0 15px 35px rgba(0,0,0,0.15);
 }
 
-.fab-text { font-weight: 600; font-size: 1.1rem; }
-.fab-buttons { display: flex; gap: 10px; }
+.fab-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fab-count {
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 1.2rem;
+    font-weight: bold;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.fab-text {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.fab-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* ==========================================
+   AFFICHAGE DES MÉDIAS ET CHARGEMENT (SPINNER)
+========================================== */
+
+/* 1. Le Spinner (Cercle qui tourne) en arrière-plan */
+.media-container::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--visited); /* Le vert de sélection */
+    border-radius: 50%;
+    animation: spinnerRotate 1s linear infinite;
+    z-index: 0;
+}
+
+@keyframes spinnerRotate {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* 2. Paramètres de base de l'image et de la vidéo */
+.media-container img, 
+.media-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: low-quality; 
+    filter: contrast(95%); 
+    position: relative;
+    z-index: 1; /* L'image passe par-dessus le spinner */
+}
+
+/* 3. On cache l'image par défaut pour éviter l'icône brisée */
+.media-container img {
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out; /* Apparition douce */
+    background-color: var(--bg); /* Couvre parfaitement le fond */
+}
+
+/* 4. Quand l'image est enfin chargée, elle apparaît en fondu */
+.media-container img.loaded { 
+    opacity: 1; 
+}
+
+/* 5. Arrêter et masquer définitivement le spinner une fois le média chargé ou réparé */
+.media-container:has(img.loaded)::before,
+.media-container:has(video)::before {
+    display: none;
+    animation: none;
+}
 
 /* ==========================================
    GALERIE & CARTES
@@ -409,8 +544,120 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--visited)
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); 
     background: var(--bg); border: 1px solid var(--border); color: var(--text);
     padding: 10px 20px; border-radius: 30px; font-size: 0.9rem; font-weight: bold;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 9999;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; 
+    z-index: 900; /* Modifié ici : 900 au lieu de 9999 pour rester derrière les modales */
     transition: transform 0.3s, background 0.2s; display: flex; align-items: center;
 }
 .scroll-marker.visible { transform: translateX(-50%) translateY(0); }
 .scroll-marker:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+
+/* ==========================================
+   BARRE DE NAVIGATION BAS (STYLE APP NATIVE)
+========================================== */
+@media (min-width: 769px) {
+    /* Sur PC, on cache la barre du bas */
+    .mobile-bottom-nav { display: none !important; }
+}
+
+@media (max-width: 768px) {
+    /* 1. On donne de la place au bas de page pour ne pas cacher de contenu */
+    body { padding-bottom: 80px; }
+    
+    /* 2. En-tête : Titre centré et icône à droite */
+    .header-container { position: relative; justify-content: center !important; padding: 15px; display: flex; align-items: center; }
+    .logo { font-size: 1.2rem !important; text-align: center; margin: 0; padding: 0 40px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    /* Le conteneur des actions se place absolument à droite sur mobile */
+    .header-actions { position: absolute; right: 15px; display: flex; align-items: center; gap: 10px; }
+    .desktop-only { display: none !important; }
+    
+    /* On ajuste le bouton compact pour qu'il soit bien rond/petit sur mobile */
+    #headerCompactBtn { padding: 6px 12px !important; font-size: 1.1rem; }
+    
+    /* 4. Le style de la barre de navigation fixée en bas */
+    .mobile-bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: var(--card);
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-around;
+        padding: 10px 0 15px 0; /* Un peu plus de place en bas pour le confort du doigt */
+        z-index: 1500;
+        box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+    }
+    
+    body.light .mobile-bottom-nav { box-shadow: 0 -5px 15px rgba(0,0,0,0.05); }
+    
+    /* 5. Les icônes de la barre */
+    .nav-item {
+        background: transparent;
+        border: none;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        width: 33%;
+        transition: color 0.2s;
+    }
+    .nav-item .icon { font-size: 1.4rem; }
+    .nav-item:active { color: var(--accent); opacity: 0.7; }
+    
+    /* 6. On remonte le marqueur de scroll "🔼" pour qu'il ne touche pas la barre */
+    .scroll-marker { bottom: 90px !important; }
+}
+
+/* Empêche le badge Collection de s'étirer sur toute l'image */
+.badge.collection-badge {
+    top: auto !important;
+    left: auto !important;
+}
+
+/* S'assure que le conteneur des badges est toujours au-dessus de l'image */
+.media-container > div:first-child {
+    z-index: 10 !important;
+}
+
+/* Effet au survol pour le bouton rafraîchir du bas */
+.bottom-floating-controls button:hover {
+    background: var(--accent) !important;
+    color: var(--bg) !important;
+    transform: scale(1.1);
+    transition: all 0.2s ease-in-out;
+}
+
+/* ==========================================
+   NUMÉROTATION AUTOMATIQUE PAR SECTION
+========================================== */
+
+/* 1. On remet le compteur à zéro au début de chaque grande section */
+#jsonLinks, 
+#linkedLocalFiles, 
+#localFiles {
+    counter-reset: section-counter;
+}
+
+/* 2. Chaque carte fait avancer le compteur de 1 */
+.media-card {
+    counter-increment: section-counter;
+}
+
+.card-number-badge{
+    opacity: 0.15 !important
+}
+/* 3. On injecte le numéro automatiquement dans le badge */
+.card-number-badge::after {
+    content: "#" counter(section-counter);
+
+}
+/* Cache temporairement le numéro au survol de la carte pour bien voir l'image */
+.media-card:hover .card-number-badge {
+    opacity: 0.8 !important;
+}
