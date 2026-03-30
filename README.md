@@ -1,55 +1,82 @@
 # Grok Imagine Archive 🗄️
 
-**Votre interface d'audit visuel et de gestion locale pour les générations Grok (xAI).**
-
-Grok Imagine Archive est une application web statique, fonctionnant en vase clos, conçue pour vous redonner le contrôle et la lisibilité sur vos archives de données personnelles exportées depuis Grok.
+**Votre galerie privée pour reprendre le contrôle de vos créations Grok (xAI).**
 
 🌐 **Accéder à l'application :** [https://lanoixdesign.github.io/grok-archive-viewer/](https://lanoixdesign.github.io/grok-archive-viewer/)
 
 ---
 
-## 🛡️ Transparence et Pédagogie : Reprendre le contrôle de ses données
+## 💡 Le saviez-vous ? (Pourquoi cet outil existe)
 
-### 1. Démystifier la « Boîte Noire »
-L'exportation légale de vos données Grok se présente sous la forme d'une archive brute (fichiers JSON complexes et dossiers imbriqués), souvent inexploitable pour un utilisateur non averti. **Grok Imagine Archive a été conçu dans une démarche stricte de transparence.** Il agit exclusivement comme un **pont de lecture local** : une interface qui traduit votre propre « plan cadastral » numérique en une galerie visuelle claire et structurée. L'outil vous restitue simplement la lisibilité sur les données qui vous appartiennent déjà.
+**Vos données vous appartiennent, mais elles sont parfois difficiles à lire.** Lorsque vous demandez une copie de vos données personnelles à Grok, vous recevez un gros dossier contenant des milliers de lignes de code informatique et de sous-dossiers. Pour une personne qui n'a pas l'habitude, c'est tout simplement illisible ! 
 
-### 2. Le standard industriel du « Soft Delete » (Archives Latentes)
-Il est tout à fait normal de retrouver dans votre archive des images que vous pensiez avoir supprimées. Dans l'industrie technologique, supprimer définitivement une donnée de manière isolée (requête par requête) est extrêmement coûteux en ressources serveurs. 
-* **La mise en file d'attente :** Les plateformes privilégient le *Soft Delete* (suppression logique). L'image disparaît de votre interface utilisateur habituelle, mais reste conservée dans une file d'attente (base de données) en vue d'une purge globale et massive ultérieure.
-* **L'évolution de la plateforme :** Dans les premières versions de Grok, les médias ne pouvaient pas être supprimés ; ils étaient simplement "retirés des favoris" et restaient stockés. Aujourd'hui, en 2026, Grok propose de véritables fonctions de suppression natives.
+**Grok Imagine Archive est votre traducteur.**
+Cet outil a été créé pour vous apporter une solution simple et visuelle. Il agit comme une lentille magique : il décode ces fichiers informatiques compliqués et les transforme instantanément en une magnifique galerie de photos, facile à parcourir depuis votre navigateur.
 
-**Notre valeur ajoutée :** Grok Imagine Archive met en lumière cette portion de l'internet toujours active. L'outil identifie ces médias latents, vous permettant d'utiliser les nouvelles fonctionnalités de xAI pour enfin finaliser leur suppression définitive et exercer votre droit à l'oubli.
+**Où en sont vraiment vos images supprimées ?**
+Il est tout à fait normal que les systèmes informatiques ne suppriment pas les fichiers instantanément. Comme l'explique la [documentation officielle de Grok (FAQ)](https://x.ai/legal/faq), lorsque vous effacez une création, l'entreprise place le fichier dans une file d'attente et peut le conserver jusqu'à **30 jours** après votre demande de suppression. De plus, pour des raisons de sécurité (notamment pour prévenir et tracer la création de *deepfakes*), certaines images peuvent être conservées de manière sécurisée jusqu'à la fin de l'année **2026**.
 
----
-
-## 📋 Mode d'Emploi Sécurisé
-
-1. **Requête de données :** Réclamez votre archive officielle via [Grok Data](https://accounts.x.ai/data).
-2. **Extraction :** Décompressez l'intégralité de l'archive `.zip` sur un espace de stockage local de votre ordinateur.
-3. **Analyse Locale :** Lancez Grok Imagine Archive, cliquez sur **🗄️ Charger Dossier** et pointez vers la racine de votre archive.
-4. **Action et Purge :** Inspectez vos médias. Pour purger définitivement une archive latente du Cloud, utilisez le bouton **🔗 VOIR SUR GROK** pour appliquer la suppression depuis votre espace utilisateur officiel.
+Notre outil vous permet d'y voir clair : il sépare ce qui est définitivement enregistré chez vous de ce qui est encore en attente sur Internet, vous donnant ainsi le pouvoir de faire le tri sereinement.
 
 ---
 
-## 🚀 Fonctionnalités Professionnelles
+## 🚀 Les bénéfices pour vous
 
-* **Moteur de Tri Intelligent :** Vos archives sont automatiquement séparées en trois catégories claires via un système d'accordéons exclusifs : Liens Cloud (latents), Fichiers Locaux liés au Cloud, et Fichiers Locaux Orphelins.
-* **Navigation Très Haute Performance :** Profitez d'une navigation ultra fluide qui ne ralentira jamais votre ordinateur, même avec des milliers d'images *(grâce à la technologie de Lazy Loading)*.
-* **Marqueur de Défilement Dynamique :** Repérez-vous facilement dans vos archives massives grâce à une bulle intelligente indiquant votre progression (%) et la date précise des médias affichés au centre de votre écran.
-* **Mode Compact & Actions par Lots :** Basculez en un clic sur une vue "vignettes" pour une supervision globale. Sélectionnez de multiples fichiers pour générer des archives ZIP locales à la volée, ou ouvrir plusieurs liens Cloud simultanément.
-* **Gestion Chirurgicale des Méta-données :** Modale de lecture avancée permettant de consulter l'intégralité de vos "prompts" (commandes textuelles) originaux, avec possibilité d'exportation sécurisée au format `.txt`.
-* **Résilience des Liens :** Système de "fallback" (repli) automatique. Si une image Cloud semble avoir expiré de son serveur principal, l'outil tente automatiquement de la récupérer via les serveurs de partage secondaires avant de la déclarer morte.
-* **Souveraineté et Sécurité :** Traitement 100 % local. Aucune donnée, aucune image, ni aucun identifiant ne transite par un serveur tiers *(traitement 100% Client-side)*.
+* 🔒 **100% Privé et Sécurisé :** Vos images ne quittent jamais votre ordinateur. Tout se passe directement dans votre navigateur. Personne d'autre que vous ne peut voir votre galerie.
+* ⚡ **Navigation Ultra-Fluide :** Même si vous avez généré des milliers d'images, l'application restera aussi rapide qu'à l'ouverture. Votre ordinateur ne ralentira jamais.
+* 🧹 **Reprise de Contrôle :** Séparez facilement ce qui est sauvegardé sur votre ordinateur de ce qui traîne encore sur Internet.
+* 📖 **Retrouvez vos idées :** Un clic sur une image vous permet de relire et de copier la phrase exacte (le "prompt") que vous aviez utilisée pour la créer.
+* 📦 **Gestion Simplifiée :** Sélectionnez plusieurs images à la fois pour les télécharger sous forme de fichier `.zip` ou ouvrir leurs liens Grok respectifs en un clic.
 
 ---
 
-## 🔒 Pacte de Transparence et Autonomie 
+## 📋 Mode d'Emploi Pas-à-Pas (Zéro stress)
 
-Grok Imagine Archive a été développé avec une philosophie Open Source centrée sur l'autonomisation des utilisateurs. 
+> ⚠️ **Prérequis Navigateur :** Pour pouvoir ouvrir votre dossier d'archives complet, l'outil utilise une technologie récente. Veuillez utiliser **Google Chrome, Microsoft Edge, Brave ou Opera**. *(L'ouverture de dossiers n'est pas encore compatible avec Safari ou Mozilla Firefox).*
 
-* **Gardez la main jusqu'au bout :** Si vous utilisez un ordinateur partagé, un simple clic sur l'icône **🧹 (Effacer Session)** efface toutes vos traces locales et supprime l'accès au dossier.
-* **Indépendance stricte :** Ce projet est un outil tiers, indépendant et open-source. Il n'est en aucun cas affilié, sponsorisé, endossé ou validé par xAI ou Grok. L'utilisation de la plateforme Grok pour la suppression de vos données reste soumise à leurs propres conditions générales d'utilisation.
-* **Licence et utilisation :** Ce logiciel communautaire est fourni "en l'état" (« AS IS »). Vous êtes pleinement maître et responsable des actions effectuées via l'interface, notamment lors des purges de données. 
+Pas besoin d'être un expert en informatique. Suivez simplement ces 3 étapes :
+
+### Étape 1 : Récupérer votre archive officielle
+1. Allez sur les paramètres de votre compte via ce lien direct : [https://accounts.x.ai/data](https://accounts.x.ai/data)
+2. Connectez-vous et cliquez sur **Télécharger mes données**.
+3. **Surveillez votre boîte mail :** la réception se fait par un lien cliquable pour télécharger les données. Généralement, cela prend 5 minutes maximum !
+
+### Étape 2 : Préparer le dossier
+Une fois le fichier téléchargé (il est au format `.zip`), **décompressez-le** (clic droit > "Extraire tout...") et placez le dossier obtenu où vous le souhaitez sur votre ordinateur (sur votre Bureau, par exemple).
+
+### Étape 3 : Explorer vos souvenirs
+1. Ouvrez [Grok Imagine Archive](https://lanoixdesign.github.io/grok-archive-viewer/).
+2. Cliquez sur le gros bouton **🗄️ Charger Dossier** pour parcourir le dossier téléchargé, ou cliquez sur **📄 Ouvrir mon fichier d'historique** pour charger uniquement le fichier de sauvegarde `.json`. Vous pouvez également glisser-déposer votre fichier `.json` directement sur la page.
+3. Sélectionnez le dossier ou le fichier que vous venez d'extraire.
+4. **C'est prêt !** Naviguez, triez, téléchargez ou utilisez les boutons "🔗 VOIR SUR GROK" pour nettoyer ce qui doit l'être.
 
 ---
-*Outil développé avec passion pour la communauté. Si cette interface vous a permis de sécuriser vos données, vous pouvez soutenir le projet en offrant un 🇫🇷☕️ via le bouton dédié de l'application.*
+
+## 🤝 Notre Pacte de Confiance, de Transparence et RGPD
+
+Nous avons conçu cet outil pour vous aider, dans un esprit de communauté et de bienveillance. La protection de votre vie privée est notre priorité absolue.
+
+* **Conformité RGPD totale (Zéro collecte) :** Puisque tout fonctionne en vase clos sur votre machine, **nous ne collectons, ne stockons et ne revendons absolument aucune de vos données personnelles.** Il n'y a pas de création de compte, pas de mot de passe, et nous n'utilisons aucun traceur (cookie) publicitaire ou analytique pour vous espionner.
+* **Le bouton "Déconnexion" 🚪 :** Si vous utilisez l'ordinateur de la famille ou du bureau, ouvrez le "Menu principal" (⚙️ Menu) et cliquez sur **🚪 Fermer la session (Déconnexion)** quand vous avez terminé. Cela effacera instantanément toutes les données de session de la mémoire de ce navigateur.
+* **Notre engagement :** Cet outil est indépendant, gratuit et transparent (Open Source). Il n'est pas affilié à l'entreprise xAI ou à Grok. 
+* **Responsabilité partagée :** L'outil vous montre le chemin, mais vous restez le seul pilote de vos données. Les suppressions définitives que vous choisissez de faire sur le site officiel de Grok vous appartiennent. L'outil vous est fourni avec passion pour vous aider, tel quel, pour faciliter votre gestion personnelle.
+
+---
+*Si cette interface vous a permis de sécuriser vos données et d'y voir plus clair, vous pouvez soutenir le développeur en offrant un ☕️ via le bouton dédié dans l'application.*
+
+---
+---
+
+## ⚙️ Pour les experts et la communauté technique (Sous le capot)
+
+*Cette section est destinée aux développeurs et aux curieux qui souhaitent comprendre la mécanique de l'outil.*
+
+Pour garantir l'expérience utilisateur et la conformité Privacy-by-Design décrites plus haut, l'application repose sur une architecture stricte et moderne :
+
+* **Architecture 100% Client-Side (No-Backend) :** En conformité stricte avec les principes du RGPD, l'application n'agit pas en tant que responsable de traitement. Aucune API tierce, aucune base de données distante n'est utilisée. Le parsing du `prod-grok-backend.json` et des dossiers `prod-mc-asset-server` se fait intégralement dans le DOM via l'API *File System Access* (nécessitant Chromium), garantissant un sandboxing total.
+* **Performances & Lazy Loading :** L'affichage de la grille utilise l'API *Intersection Observer* et un défilement infini (*Infinite Scroll*) par paquets (chunks). Le DOM n'est jamais surchargé, garantissant une empreinte RAM minimale (prévention des fuites mémoire). Les vidéos et les images hors écran sont déchargées (`video.removeAttribute('src')`, `content-visibility: auto`).
+* **Persistance d'état (IndexedDB) :** Les sessions (`rootHandle`, `importedAssets`), les états de lecture (`visitedSet`, `viewedSet`) et les sélections (`selectedSet`) sont mis en cache localement via *IndexedDB* pour permettre à l'utilisateur de reprendre son tri sans recharger les données de l'archive.
+* **Résilience des ressources (Fallback URLs) :** Implémentation d'un système de repli silencieux. Si un blob local ou une URL distante CDN (`/images/`) renvoie une erreur, le script tente automatiquement un routage vers l'URL de partage (`/share-images/`), puis tente d'afficher un média parent (même prompt) ou se rabat sur la version vidéo avant de déclarer l'asset expiré ou mort.
+* **Gestion en masse (Batch processing) :** Création d'archives ZIP locales à la volée via la mémoire vive du navigateur (`JSZip`) pour l'exportation des sélections multiples de la grille.
+
+**N'hésitez pas à proposer vos *Pull Requests* ou à ouvrir des *Issues* pour faire évoluer l'outil !**
