@@ -1173,7 +1173,7 @@ safeBind('fabExportBtn', 'click', () => {
         popupContent.innerHTML = `
             <h2 style="margin-bottom:15px;">✅ ${selected.length} éléments</h2>
             <div style="display:flex;flex-direction:column;gap:10px;">
-                <button class="btn primary-btn" id="jsonDownloadBtn" style="width:100%">📄 Télécharger l'historique (.json)</button>
+                <button class="btn primary-btn" id="jsonDownloadBtn" style="width:100%">📄 Créer votre bibliothèque (.json)</button>
                 ${mediaBtnHtml}
                 ${openLinksBtnHtml}
                 <button class="btn secondary" style="width:100%" onclick="closePopup()">Annuler</button>
