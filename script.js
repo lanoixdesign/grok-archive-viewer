@@ -465,28 +465,69 @@ async function scanDirectory(handle) {
 }
 
 function extractMediaFromBackend(data) {
-    const assets = [];
+    const assetsMap = new Map();
 
-    if (data.media_posts && Array.isArray(data.media_posts)) {
-        return data.media_posts;
+    const normalize = (p) => {
+        if (!p) return null;
+        const id = p.id || p.asset_id || p.assetId || p.post_id || p.video_id || (p.link && String(p.link).split('/').pop()) || null;
+        if (!id) return null;
+
+        const prompt = p.original_prompt || p.prompt || p.message || p.caption || p.text || p.title || 'Importé';
+        const url = p.url || p.media_url || p.image_url || p.video_url || (p.attachments && p.attachments[0] && p.attachments[0].url) || null;
+        const media_type = p.media_type || (typeof url === 'string' && /\.(mp4|webm|mov|mkv)(\?|$)/i.test(url) ? 'video' : 'image');
+        const date = new Date(p.create_time || p.date || p.created_at || p.timestamp || Date.now());
+        const link = p.link || (id ? `https://grok.com/imagine/post/${id}` : null);
+
+        return {
+            id: String(id),
+            prompt: typeof prompt === 'string' ? prompt : String(prompt || ''),
+            original_prompt: p.original_prompt || null,
+            media_type: media_type || 'image',
+            url: url || null,
+            date,
+            link,
+            source: 'Cloud'
+        };
+    };
+
+    // 1) If the backend already exposes media_posts, normalize and return
+    if (data && Array.isArray(data.media_posts)) {
+        data.media_posts.forEach(p => {
+            const n = normalize(p);
+            if (n) assetsMap.set(n.id, n);
+        });
+        return Array.from(assetsMap.values());
     }
 
-    if (data.conversations && Array.isArray(data.conversations)) {
+    // 2) Conversations format (responses with asset_ids or attachments)
+    if (data && Array.isArray(data.conversations)) {
         data.conversations.forEach(conv => {
-            const title = conv.conversation?.title || "Sans titre";
-            if (conv.responses && Array.isArray(conv.responses)) {
+            const convTitle = conv.conversation?.title || 'Sans titre';
+            if (Array.isArray(conv.responses)) {
                 conv.responses.forEach(response => {
-                    if (response.asset_ids && Array.isArray(response.asset_ids)) {
+                    // If response contains explicit asset objects
+                    if (Array.isArray(response.assets)) {
+                        response.assets.forEach(a => {
+                            const merged = Object.assign({}, a, { message: response.message, title: convTitle, create_time: response.create_time || conv.conversation?.create_time });
+                            const n = normalize(merged);
+                            if (n) assetsMap.set(n.id, n);
+                        });
+                    }
+
+                    // If response lists asset_ids only
+                    if (Array.isArray(response.asset_ids)) {
                         response.asset_ids.forEach(id => {
-                            assets.push({
-                                id: id,
-                                prompt: response.message ? 
-                                    (typeof response.message === 'string' ? response.message.substring(0, 180) : title) : title,
+                            const prompt = response.message ? (typeof response.message === 'string' ? response.message.substring(0, 180) : convTitle) : convTitle;
+                            const obj = {
+                                id,
+                                prompt,
                                 media_type: 'image',
                                 date: new Date(response.create_time || conv.conversation?.create_time || Date.now()),
                                 link: `https://grok.com/imagine/post/${id}`,
                                 source: 'Cloud'
-                            });
+                            };
+                            const n = normalize(obj) || obj;
+                            assetsMap.set(String(id), n);
                         });
                     }
                 });
@@ -494,8 +535,26 @@ function extractMediaFromBackend(data) {
         });
     }
 
-    if (Array.isArray(data)) return data;
-    return assets;
+    // 3) Generic arrays: posts, results, items
+    const tryArrayKeys = ['posts', 'results', 'items', 'data'];
+    for (const key of tryArrayKeys) {
+        if (data && Array.isArray(data[key])) {
+            data[key].forEach(p => {
+                const n = normalize(p);
+                if (n) assetsMap.set(n.id, n);
+            });
+        }
+    }
+
+    // 4) If the root object is already an array of items
+    if (Array.isArray(data)) {
+        data.forEach(p => {
+            const n = normalize(p);
+            if (n) assetsMap.set(n.id, n);
+        });
+    }
+
+    return Array.from(assetsMap.values());
 }
 
 function createCardElement(asset, idx) {
