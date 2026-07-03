@@ -1,10 +1,14 @@
 // ==========================================
+// Grok Archive Viewer - Version mise à jour pour prod-grok-backend.json
+// ==========================================
+
+// ==========================================
 // VARIABLES GLOBALES
 // ==========================================
 let allAssets = [];
 let galleryItems = []; 
 let visitedSet = new Set();
-let viewedSet = new Set(); // NOUVELLE MÉMOIRE POUR LE STATUT "VUE"
+let viewedSet = new Set();
 let currentLightboxIndex = -1;
 let authData = null;
 let billingData = null;
@@ -15,390 +19,167 @@ let autoPlayVideo = localStorage.getItem('grokAutoPlay') !== 'false';
 let selectedSet = new Set(); 
 let isCompact = localStorage.getItem('grokCompactMode') === 'true'; 
 const CHUNK_SIZE = 50; 
+
 let cloudItems = [];
 let linkedItems = [];
 let orphanItems = [];
 let cloudIndex = 0;
 let linkedIndex = 0;
 let orphanIndex = 0;
-let currentPromptData = { text: '', id: '' };
-
-const jsonLinksEl = document.getElementById('jsonLinks');
-const localFilesEl = document.getElementById('localFiles');
-const linkedLocalFilesEl = document.getElementById('linkedLocalFiles'); 
-
 
 // ==========================================
-// OBSERVER DES VIDÉOS (Contournement de la limite Chrome)
+// EXTRACTION DES MÉDIAS DU BACKEND.JSON
 // ==========================================
-videoObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        const video = entry.target;
-        if (entry.isIntersecting) {
-            // SÉCURITÉ : On s'assure de ne pas injecter "undefined"
-            if ((!video.src || video.src === "" || video.src.includes("undefined")) && video.dataset.src) {
-                video.src = video.dataset.src;
-                video.load();
+function extractMediaFromBackend(data) {
+    const assets = [];
+
+    // Format ancien avec media_posts
+    if (data.media_posts && Array.isArray(data.media_posts)) {
+        return data.media_posts;
+    }
+
+    // Nouveau format : conversations + responses
+    if (data.conversations && Array.isArray(data.conversations)) {
+        data.conversations.forEach(conv => {
+            const title = conv.conversation?.title || "Sans titre";
+            
+            if (conv.responses && Array.isArray(conv.responses)) {
+                conv.responses.forEach(response => {
+                    // Via asset_ids
+                    if (response.asset_ids && Array.isArray(response.asset_ids)) {
+                        response.asset_ids.forEach(id => {
+                            assets.push({
+                                id: id,
+                                prompt: response.message ? 
+                                    (typeof response.message === 'string' ? response.message.substring(0, 180) : title) : title,
+                                media_type: 'image',
+                                date: new Date(response.create_time || conv.conversation?.create_time || Date.now()),
+                                link: `https://grok.com/imagine/post/${id}`,
+                                source: 'Cloud'
+                            });
+                        });
+                    }
+
+                    // Via card_attachments_json
+                    if (response.card_attachments_json && Array.isArray(response.card_attachments_json)) {
+                        response.card_attachments_json.forEach(att => {
+                            try {
+                                const attData = typeof att === 'string' ? JSON.parse(att) : att;
+                                if (attData.id) {
+                                    assets.push({
+                                        id: attData.id,
+                                        prompt: (response.message || title).toString().substring(0, 150),
+                                        media_type: attData.media_type || 'image',
+                                        date: new Date(response.create_time),
+                                        link: attData.link || `https://grok.com/imagine/post/${attData.id}`,
+                                        source: 'Cloud'
+                                    });
+                                }
+                            } catch(e) {}
+                        });
+                    }
+                });
             }
-            if (autoPlayVideo && !isCompact) {
-                video.play().catch(()=>{});
-            }
-        } else {
-            video.pause();
-            video.removeAttribute('src'); 
-            video.load();                 
-        }
-    });
-}, { rootMargin: '300px' });
-
-// ==========================================
-// GESTION DU MODE COMPACT (Bouton unique en-tête)
-// ==========================================
-window.toggleCompactModeCommon = function() {
-    isCompact = !isCompact;
-    // Sauvegarde le choix dans le navigateur
-    localStorage.setItem('grokCompactMode', isCompact);
-    
-    // Applique le mode compact sur les grilles
-    ['jsonLinks', 'linkedLocalFiles', 'localFiles'].forEach(id => {
-        const grid = document.getElementById(id);
-        if (grid) grid.classList.toggle('compact', isCompact);
-    });
-
-    updateCompactBtnUI();
-
-    // Coupe les vidéos si on passe en vue réduite
-if (isCompact) {
-        document.querySelectorAll('.lazy-video').forEach(video => {
-            video.pause();
-            video.removeAttribute('src'); // On purge Chrome
-            video.load();
         });
     }
-};
 
-// Garde l'ancien nom actif au cas où
-window.toggleCompactMode = function() {
-    window.toggleCompactModeCommon();
-};
-
-window.toggleCompactModeMobile = function() {
-    window.toggleCompactModeCommon();
-};
-
-// Fonction dédiée pour mettre à jour le design du nouveau bouton en haut à droite
-window.updateCompactBtnUI = function() {
-    const icon = document.getElementById('compactIcon');
-    const text = document.getElementById('compactText');
-    const btn = document.getElementById('headerCompactBtn');
-    
-    if (icon) icon.textContent = isCompact ? '🔲' : '⏹️';
-    if (text) text.textContent = isCompact ? 'Plein' : 'Compact';
-    
-    if (btn) {
-        btn.style.background = 'var(--card)';
-        btn.style.color = 'var(--text)';
-        
+    // Fallback tableau direct
+    if (Array.isArray(data)) {
+        return data;
     }
-};
 
-// ==========================================
-// VISIBILITÉ ACCUEIL / APPLICATION
-// ==========================================
-function updateAppVisibility() {
-    const welcomeScreen = document.getElementById('welcomeScreen');
-    const appView = document.getElementById('appView');
-    const toolbarsContainerPC = document.getElementById('toolbarsContainerPC');
-    
-    if (allAssets.length === 0) {
-        if (welcomeScreen) welcomeScreen.style.display = 'flex';
-        if (appView) appView.style.display = 'none';
-        if (toolbarsContainerPC) toolbarsContainerPC.style.display = 'none';
-    } else {
-        if (welcomeScreen) welcomeScreen.style.display = 'none';
-        if (appView) appView.style.display = 'block';
-        if (toolbarsContainerPC) toolbarsContainerPC.style.display = 'flex';
-    }
+    return assets;
 }
 
 // ==========================================
-// PERSISTANCE INDEXEDDB
-// ==========================================
-const dbName = "GrokArchiveDB";
-const storeName = "sessionStore";
-
-async function openDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(dbName, 1);
-        request.onupgradeneeded = () => request.result.createObjectStore(storeName);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-async function saveSession() {
-    const db = await openDB();
-    const tx = db.transaction(storeName, "readwrite");
-    const store = tx.objectStore(storeName);
-    if (rootHandle) {
-        await store.put(rootHandle, "rootHandle");
-        await store.delete("importedAssets");
-    } else if (allAssets.length > 0) {
-        await store.put(allAssets, "importedAssets");
-        await store.delete("rootHandle");
-    }
-    await store.put(Array.from(visitedSet), "visitedSet");
-    await store.put(Array.from(viewedSet), "viewedSet"); // ON SAUVEGARDE LES VUES
-    await store.put(Array.from(selectedSet), "selectedSet"); 
-}
-
-async function loadSession() {
-    try {
-        const db = await openDB();
-        const tx = db.transaction(storeName, "readonly");
-        const store = tx.objectStore(storeName);
-        
-        const savedHandle = await new Promise(r => { const req = store.get("rootHandle"); req.onsuccess = () => r(req.result); });
-        const savedAssets = await new Promise(r => { const req = store.get("importedAssets"); req.onsuccess = () => r(req.result); });
-        const savedVisited = await new Promise(r => { const req = store.get("visitedSet"); req.onsuccess = () => r(req.result); });
-        const savedViewed = await new Promise(r => { const req = store.get("viewedSet"); req.onsuccess = () => r(req.result); });
-        const savedSelected = await new Promise(r => { const req = store.get("selectedSet"); req.onsuccess = () => r(req.result); });
-
-        if (savedVisited) visitedSet = new Set(savedVisited);
-        if (savedViewed) viewedSet = new Set(savedViewed); // ON RESTAURE LES VUES
-        if (savedSelected) selectedSet = new Set(savedSelected);
-        
-        // 1. SI C'EST UN DOSSIER LOCAL (Nécessite un clic de sécurité du navigateur)
-        if (savedHandle) {
-            rootHandle = savedHandle;
-            
-            const bigActions = document.querySelector('.big-actions');
-            if (bigActions) {
-                // On crée un gros bouton de reprise bien visible
-                const restoreBtn = document.createElement('button');
-                restoreBtn.className = "btn giant-btn action-btn";
-                restoreBtn.id = "restoreSessionBtnStart";
-                restoreBtn.innerHTML = `
-                    <span class="icon">🔄</span>
-                    <div class="text">
-                        <strong>Reprendre ma session précédente</strong>
-                        <span>Cliquez ici pour autoriser l'accès à votre dossier</span>
-                    </div>
-                `;
-                // On l'ajoute tout en haut de l'écran d'accueil
-                bigActions.prepend(restoreBtn);
-                
-                restoreBtn.onclick = async () => {
-                    if (await rootHandle.requestPermission({ mode: 'readwrite' }) === 'granted') {
-                        restoreBtn.remove();
-                        await runFullScan();
-                    }
-                };
-            }
-        } 
-        // 2. SI C'EST UN FICHIER JSON (Chargement 100% automatique !)
-        else if (savedAssets && savedAssets.length > 0) {
-            allAssets = savedAssets;
-            allAssets.forEach(a => { if (!(a.date instanceof Date)) a.date = new Date(a.date); });
-            renderGallery();
-            forceOpenSection('jsonSection');
-            updateAppVisibility();
-            updateFloatingActionBar();
-        }
-    } catch (e) { console.error("Session non chargée:", e); }
-}
-
-async function clearSession() {
-    if (!confirm("⚠️ Voulez-vous vraiment effacer toutes les données et fermer la session ?")) return;
-    try {
-        const db = await openDB();
-        const tx = db.transaction(storeName, "readwrite");
-        const store = tx.objectStore(storeName);
-        await store.clear();
-        rootHandle = null;
-        visitedSet = new Set();
-        selectedSet = new Set();
-        allAssets = [];
-        galleryItems = [];
-        authData = null;
-        billingData = null;
-        renderGallery();
-        updateAppVisibility();
-        updateFloatingActionBar();
-        const restoreBtn = document.getElementById('restoreSessionBtn');
-        if (restoreBtn) restoreBtn.remove();
-        alert("✅ Session fermée.");
-    } catch (e) { console.error(e); }
-}
-
-// ==========================================
-// UI, NAVIGATION & CHARGEMENT
-// ==========================================
-function setLoading(isLoading, message = "⏳ Analyse en cours...") { 
-    const status = document.getElementById('loadingStatus');
-    if (status) {
-        status.style.display = isLoading ? 'block' : 'none';
-        if (isLoading) status.textContent = message;
-    }
-}
-
-function toggleAccordion(targetId, el) { 
-    const allSections = ['jsonSection', 'linkedLocalSection', 'localSection'];
-    const targetSection = document.getElementById(targetId);
-    if (!targetSection) return;
-    
-    const isOpening = targetSection.classList.contains('hidden');
-
-    allSections.forEach(id => {
-        const sec = document.getElementById(id);
-        const header = sec ? sec.previousElementSibling : null;
-        
-        if (id === targetId && isOpening) {
-            if (sec) sec.classList.remove('hidden');
-            if (header) header.classList.remove('collapsed');
-            
-            const topBtnPC = document.querySelector(`.pc-tools .nav-anchor-btn[onclick*="${id}"]`);
-            if (topBtnPC) {
-                document.querySelectorAll('.pc-tools .nav-anchor-btn').forEach(b => b.classList.remove('active'));
-                topBtnPC.classList.add('active');
-            }
-            
-            const topBtnMobile = document.querySelector(`.bottom-sheet-modal .nav-anchor-btn[onclick*="${id}"]`);
-            if (topBtnMobile) {
-                document.querySelectorAll('.bottom-sheet-modal .nav-anchor-btn').forEach(b => b.classList.remove('active'));
-                topBtnMobile.classList.add('active');
-            }
-        } else {
-            if (sec) sec.classList.add('hidden');
-            if (header) header.classList.add('collapsed');
-        }
-    });
-}
-
-function forceOpenSection(id) {
-    const section = document.getElementById(id);
-    if (section) {
-        section.classList.add('hidden'); 
-        toggleAccordion(id, section.previousElementSibling);
-    }
-}
-
-window.scrollToSection = function(targetId, btnElement) {
-    toggleAccordion(targetId, document.getElementById(targetId).previousElementSibling);
-    setTimeout(() => {
-        document.getElementById(targetId).previousElementSibling.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-};
-
-window.scrollToSectionMobile = function(targetId, btnElement) {
-    scrollToSection(targetId, btnElement);
-    closeToolbarModal(); // Ferme la modale sur mobile après le clic
-};
-
-window.markAsVisited = function(url, el) { 
-    visitedSet.add(url); 
-    saveSession();
-    if(el) { el.classList.add('visited'); el.classList.remove('viewed'); } 
-};
-
-window.markAsViewed = function(el, url) { 
-    if (url) {
-        viewedSet.add(url); // On l'ajoute à la mémoire
-        saveSession();      // On sauvegarde en base de données
-    }
-    if (el && !el.classList.contains('viewed')) el.classList.add('viewed'); 
-};
-
-// ==========================================
-// IMPORT JSON ET SCANNAGE
+// IMPORT JSON
 // ==========================================
 async function handleJsonImport(file) {
-    setLoading(true, "📂 Importation du fichier JSON...");
+    setLoading(true, "📂 Importation prod-grok-backend.json...");
     try {
         const text = await file.text();
         const data = JSON.parse(text);
-        const posts = data.media_posts || (Array.isArray(data) ? data : null);
+        
+        const rawPosts = extractMediaFromBackend(data);
+        
+        if (!rawPosts || rawPosts.length === 0) {
+            throw new Error("Aucun média trouvé dans le backup.");
+        }
 
-        if (!posts) throw new Error("Format JSON non reconnu.");
+        allAssets = rawPosts.map(p => {
+            const isVideo = p.media_type === 'video' || (p.url && p.url.includes('.mp4'));
+            const realPrompt = p.original_prompt || p.prompt || 
+                              (typeof p.message === 'string' ? p.message.substring(0, 200) : 'Génération Grok');
+            
+            return {
+                id: p.id,
+                prompt: realPrompt,
+                url: isVideo 
+                    ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
+                    : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
+                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
+                link: p.link || `https://grok.com/imagine/post/${p.id}`,
+                media_type: isVideo ? 'video' : 'image',
+                date: new Date(p.date || p.create_time || Date.now()),
+                source: 'Cloud'
+            };
+        }).filter(a => a.id);
 
-        allAssets = posts.map(p => ({
-            id: p.id,
-            prompt: p.prompt || 'Importé',
-            url: p.url,
-            link: p.link || `https://grok.com/imagine/post/${p.id}`,
-            media_type: p.media_type || p.type || 'image',
-            date: new Date(p.date || p.create_time || Date.now()),
-            source: 'Cloud'
-        }));
-
-        rootHandle = null; 
-        await saveSession(); 
+        rootHandle = null;
+        await saveSession();
         renderGallery();
         updateAppVisibility();
         forceOpenSection('jsonSection');
+        
+        alert(`✅ ${allAssets.length} médias chargés depuis le backend !`);
     } catch (e) {
-        alert("❌ Erreur d'importation : " + e.message);
+        console.error(e);
+        alert("❌ Erreur d'import : " + e.message);
     } finally {
         setLoading(false);
     }
 }
 
-async function runFullScan() {
-    setLoading(true, "🔍 Récupération des données...");
-    allAssets = [];
-    authData = null;
-    billingData = null;
-    
-    await scanDirectory(rootHandle);
-
-    allAssets.forEach(asset => {
-        if (asset.source === 'Local') {
-            const cloudMatch = allAssets.find(a => a.source === 'Cloud' && a.id === asset.id);
-            if (cloudMatch) {
-                asset.prompt = cloudMatch.prompt;
-                asset.link = cloudMatch.link;
-                asset.hasCloudMatch = true;  
-            } else {
-                asset.prompt = "Texte indisponible (Média orphelin)";
-                asset.hasCloudMatch = false; 
-            }
-        }
-    });
-
-    setLoading(false);
-    renderGallery();
-    updateAppVisibility();
-    
-    if (allAssets.some(a => a.source === 'Cloud')) forceOpenSection('jsonSection');
-    else if (allAssets.some(a => a.source === 'Local')) forceOpenSection('localSection');
-}
-
+// ==========================================
+// SCAN DIRECTORY
+// ==========================================
 async function scanDirectory(handle) {
     for await (const entry of handle.values()) {
         try {
             if (entry.kind === 'file') {
                 const file = await entry.getFile();
-                if (entry.name === 'prod-mc-auth-mgmt-api.json') authData = JSON.parse(await file.text());
-                if (entry.name === 'prod-mc-billing.json') billingData = JSON.parse(await file.text());
+                
+                if (entry.name === 'prod-mc-auth-mgmt-api.json') {
+                    authData = JSON.parse(await file.text());
+                }
+                if (entry.name === 'prod-mc-billing.json') {
+                    billingData = JSON.parse(await file.text());
+                }
                 
                 if (entry.name === 'prod-grok-backend.json') {
-                    const data = JSON.parse(await file.text());
-                    (data.media_posts || []).forEach(p => {
-                        if (!allAssets.find(a => a.id === p.id && a.source === 'Cloud')) {
-                            const isVideo = p.media_type === 'video';
-                            const realPrompt = p.original_prompt || p.prompt || p.text || 'Texte introuvable';
-                            
-                            allAssets.push({
-                                id: p.id, 
-                                prompt: realPrompt, 
-                                url: isVideo ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
-                                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
-                                link: p.link, 
-                                media_type: p.media_type, 
-                                date: new Date(p.create_time), 
-                                source: 'Cloud'
-                            });
-                        }
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    const rawPosts = extractMediaFromBackend(data);
+                    
+                    rawPosts.forEach(p => {
+                        if (allAssets.some(a => a.id === p.id && a.source === 'Cloud')) return;
+                        
+                        const isVideo = p.media_type === 'video';
+                        const realPrompt = p.original_prompt || p.prompt || 
+                                         (typeof p.message === 'string' ? p.message.substring(0, 150) : 'Texte introuvable');
+                        
+                        allAssets.push({
+                            id: p.id,
+                            prompt: realPrompt,
+                            url: isVideo 
+                                ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
+                                : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
+                            poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
+                            link: p.link || `https://grok.com/imagine/post/${p.id}`,
+                            media_type: isVideo ? 'video' : 'image',
+                            date: new Date(p.create_time || p.date || Date.now()),
+                            source: 'Cloud'
+                        });
                     });
                 }
             } else if (entry.kind === 'directory') {
@@ -409,20 +190,29 @@ async function scanDirectory(handle) {
                                 if (aFile.name.startsWith('content')) {
                                     const file = await aFile.getFile();
                                     allAssets.push({
-                                        id: sub.name, prompt: sub.name, url: URL.createObjectURL(file),
+                                        id: sub.name,
+                                        prompt: sub.name,
+                                        url: URL.createObjectURL(file),
                                         media_type: file.type.startsWith('video') ? 'video' : 'image',
-                                        date: new Date(file.lastModified), source: 'Local',
-                                        parentHandle: sub, grandParentHandle: entry
+                                        date: new Date(file.lastModified),
+                                        source: 'Local',
+                                        parentHandle: sub,
+                                        grandParentHandle: entry
                                     });
                                 }
                             }
                         }
                     }
-                } else { await scanDirectory(entry); }
+                } else {
+                    await scanDirectory(entry);
+                }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.warn("Erreur scan :", e);
+        }
     }
 }
+
 
 function createCardElement(asset, idx) {
     const isV = visitedSet.has(asset.url);
