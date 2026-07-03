@@ -363,31 +363,19 @@ async function handleJsonImport(file) {
 }
 
 async function runFullScan() {
-    setLoading(true, "🔍 Récupération des données...");
+    setLoading(true, "🔍 Scan en cours...");
     allAssets = [];
-    authData = null;
-    billingData = null;
-    
-    if (!rootHandle) {
-        setLoading(false);
-        return alert("⚠️ Aucun dossier sélectionné. Veuillez charger votre archive locale avant de lancer le scan.");
-    }
-
     await scanDirectory(rootHandle);
 
-    // === Appariement intelligent Local ↔ Cloud ===
+    // Matching Local ↔ Cloud
     allAssets.forEach(asset => {
         if (asset.source === 'Local') {
-            const cloudMatch = allAssets.find(a => 
-                a.source === 'Cloud' && a.id === asset.id
-            );
-            
-            if (cloudMatch) {
-                asset.prompt = cloudMatch.prompt;
-                asset.link = cloudMatch.link;
+            const match = allAssets.find(a => a.source === 'Cloud' && a.id === asset.id);
+            if (match) {
+                asset.prompt = match.prompt;
+                asset.link = match.link;
                 asset.hasCloudMatch = true;
             } else {
-                asset.prompt = "Texte indisponible (Média orphelin)";
                 asset.hasCloudMatch = false;
             }
         }
@@ -396,10 +384,9 @@ async function runFullScan() {
     setLoading(false);
     renderGallery();
     updateAppVisibility();
-    
-    if (allAssets.some(a => a.source === 'Cloud')) {
-        forceOpenSection('jsonSection');
-    } else if (allAssets.some(a => a.source === 'Local')) {
+
+    // Ouvre automatiquement la section locale si besoin
+    if (allAssets.some(a => a.source === 'Local')) {
         forceOpenSection('localSection');
     }
 }
