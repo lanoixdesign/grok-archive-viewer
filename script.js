@@ -349,6 +349,11 @@ async function runFullScan() {
     authData = null;
     billingData = null;
     
+    if (!rootHandle) {
+        setLoading(false);
+        return alert("⚠️ Aucun dossier sélectionné. Veuillez charger votre archive locale avant de lancer le scan.");
+    }
+
     await scanDirectory(rootHandle);
 
     // === Appariement intelligent Local ↔ Cloud ===
@@ -381,6 +386,11 @@ async function runFullScan() {
 }
 
 async function scanDirectory(handle) {
+    if (!handle || typeof handle.values !== 'function') {
+        console.warn('scanDirectory: handle invalide ou non fourni', handle);
+        return;
+    }
+
     for await (const entry of handle.values()) {
         try {
             if (entry.kind === 'file') {
