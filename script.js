@@ -1,66 +1,1486 @@
-const fs = require('fs');
-const vm = require('vm');
-const path = require('path');
+// ==========================================
+// VARIABLES GLOBALES
+// ==========================================
+let allAssets = [];
+let galleryItems = []; 
+let visitedSet = new Set();
+let viewedSet = new Set(); // NOUVELLE MÉMOIRE POUR LE STATUT "VUE"
+let currentLightboxIndex = -1;
+let authData = null;
+let billingData = null;
+let currentExportData = null;
+let rootHandle = null;
+let videoObserver = null;
+let autoPlayVideo = localStorage.getItem('grokAutoPlay') !== 'false';
+let selectedSet = new Set(); 
+let isCompact = localStorage.getItem('grokCompactMode') === 'true'; 
+const CHUNK_SIZE = 50; 
+let cloudItems = [];
+let linkedItems = [];
+let orphanItems = [];
+let cloudIndex = 0;
+let linkedIndex = 0;
+let orphanIndex = 0;
+let currentPromptData = { text: '', id: '' };
 
-const filePath = path.resolve(__dirname, 'script.js');
-const src = fs.readFileSync(filePath, 'utf8');
+const jsonLinksEl = document.getElementById('jsonLinks');
+const localFilesEl = document.getElementById('localFiles');
+const linkedLocalFilesEl = document.getElementById('linkedLocalFiles'); 
 
-// Extract the function text by scanning braces
-const fnStart = src.indexOf('function extractMediaFromBackend');
-if (fnStart === -1) {
-  console.error('extractMediaFromBackend not found');
-  process.exit(2);
+
+// ==========================================
+// OBSERVER DES VIDÉOS (Contournement de la limite Chrome)
+// ==========================================
+videoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        const video = entry.target;
+        if (entry.isIntersecting) {
+            // SÉCURITÉ : On s'assure de ne pas injecter "undefined"
+            if ((!video.src || video.src === "" || video.src.includes("undefined")) && video.dataset.src) {
+                video.src = video.dataset.src;
+                video.load();
+            }
+            if (autoPlayVideo && !isCompact) {
+                video.play().catch(()=>{});
+            }
+        } else {
+            video.pause();
+            video.removeAttribute('src'); 
+            video.load();                 
+        }
+    });
+}, { rootMargin: '300px' });
+
+// ==========================================
+// GESTION DU MODE COMPACT (Bouton unique en-tête)
+// ==========================================
+window.toggleCompactModeCommon = function() {
+    isCompact = !isCompact;
+    // Sauvegarde le choix dans le navigateur
+    localStorage.setItem('grokCompactMode', isCompact);
+    
+    // Applique le mode compact sur les grilles
+    ['jsonLinks', 'linkedLocalFiles', 'localFiles'].forEach(id => {
+        const grid = document.getElementById(id);
+        if (grid) grid.classList.toggle('compact', isCompact);
+    });
+
+    updateCompactBtnUI();
+
+    // Coupe les vidéos si on passe en vue réduite
+if (isCompact) {
+        document.querySelectorAll('.lazy-video').forEach(video => {
+            video.pause();
+            video.removeAttribute('src'); // On purge Chrome
+            video.load();
+        });
+    }
+};
+
+// Garde l'ancien nom actif au cas où
+window.toggleCompactMode = function() {
+    window.toggleCompactModeCommon();
+};
+
+window.toggleCompactModeMobile = function() {
+    window.toggleCompactModeCommon();
+};
+
+// Fonction dédiée pour mettre à jour le design du nouveau bouton en haut à droite
+window.updateCompactBtnUI = function() {
+    const icon = document.getElementById('compactIcon');
+    const text = document.getElementById('compactText');
+    const btn = document.getElementById('headerCompactBtn');
+    
+    if (icon) icon.textContent = isCompact ? '🔲' : '⏹️';
+    if (text) text.textContent = isCompact ? 'Plein' : 'Compact';
+    
+    if (btn) {
+        btn.style.background = 'var(--card)';
+        btn.style.color = 'var(--text)';
+        
+    }
+};
+
+// ==========================================
+// VISIBILITÉ ACCUEIL / APPLICATION
+// ==========================================
+function updateAppVisibility() {
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const appView = document.getElementById('appView');
+    const toolbarsContainerPC = document.getElementById('toolbarsContainerPC');
+    
+    if (allAssets.length === 0) {
+        if (welcomeScreen) welcomeScreen.style.display = 'flex';
+        if (appView) appView.style.display = 'none';
+        if (toolbarsContainerPC) toolbarsContainerPC.style.display = 'none';
+    } else {
+        if (welcomeScreen) welcomeScreen.style.display = 'none';
+        if (appView) appView.style.display = 'block';
+        if (toolbarsContainerPC) toolbarsContainerPC.style.display = 'flex';
+    }
 }
-const braceOpen = src.indexOf('{', fnStart);
-let i = braceOpen + 1;
-let depth = 1;
-while (i < src.length && depth > 0) {
-  const ch = src[i];
-  if (ch === '{') depth++;
-  else if (ch === '}') depth--;
-  i++;
-}
-const fnText = src.slice(fnStart, i);
 
-const sandbox = { console };
-const context = vm.createContext(sandbox);
-try {
-  vm.runInContext('const module = {}; ' + '\n' + fnText + '\n' + 'module.exports = extractMediaFromBackend;', context);
-} catch (e) {
-  console.error('Error compiling function:', e);
-  process.exit(3);
+// ==========================================
+// PERSISTANCE INDEXEDDB
+// ==========================================
+const dbName = "GrokArchiveDB";
+const storeName = "sessionStore";
+
+async function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(storeName);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
 }
 
-const extractor = context.module ? context.module.exports : null;
-if (!extractor) {
-  console.error('Failed to load extractor');
-  process.exit(4);
+async function saveSession() {
+    const db = await openDB();
+    const tx = db.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    if (rootHandle) {
+        await store.put(rootHandle, "rootHandle");
+        await store.delete("importedAssets");
+    } else if (allAssets.length > 0) {
+        await store.put(allAssets, "importedAssets");
+        await store.delete("rootHandle");
+    }
+    await store.put(Array.from(visitedSet), "visitedSet");
+    await store.put(Array.from(viewedSet), "viewedSet"); // ON SAUVEGARDE LES VUES
+    await store.put(Array.from(selectedSet), "selectedSet"); 
 }
 
-const samples = [
-  {
-    name: 'media_posts array',
-    data: { media_posts: [ { id: 'p1', prompt: 'Hello', media_type: 'image', date: '2023-01-01' } ] }
-  },
-  {
-    name: 'conversations with asset_ids',
-    data: { conversations: [ { conversation: { title: 'Conv' }, responses: [ { asset_ids: ['a1','a2'], message: 'MSG', create_time: 1600000000000 } ] } ] }
-  },
-  {
-    name: 'root array',
-    data: [ { id: 'r1', prompt: 'Root', url: 'http://example.com/img.jpg' } ]
-  }
-];
+async function loadSession() {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        
+        const savedHandle = await new Promise(r => { const req = store.get("rootHandle"); req.onsuccess = () => r(req.result); });
+        const savedAssets = await new Promise(r => { const req = store.get("importedAssets"); req.onsuccess = () => r(req.result); });
+        const savedVisited = await new Promise(r => { const req = store.get("visitedSet"); req.onsuccess = () => r(req.result); });
+        const savedViewed = await new Promise(r => { const req = store.get("viewedSet"); req.onsuccess = () => r(req.result); });
+        const savedSelected = await new Promise(r => { const req = store.get("selectedSet"); req.onsuccess = () => r(req.result); });
 
-let failed = false;
-for (const s of samples) {
-  try {
-    const out = extractor(s.data);
-    console.log('---', s.name, '->', Array.isArray(out) ? out.length + ' items' : typeof out);
-    if (Array.isArray(out) && out.length > 0) console.log('  first:', out[0]);
-  } catch (e) {
-    console.error('Test failed for', s.name, e);
-    failed = true;
-  }
+        if (savedVisited) visitedSet = new Set(savedVisited);
+        if (savedViewed) viewedSet = new Set(savedViewed); // ON RESTAURE LES VUES
+        if (savedSelected) selectedSet = new Set(savedSelected);
+        
+        // 1. SI C'EST UN DOSSIER LOCAL (Nécessite un clic de sécurité du navigateur)
+        if (savedHandle) {
+            rootHandle = savedHandle;
+            
+            const bigActions = document.querySelector('.big-actions');
+            if (bigActions) {
+                // On crée un gros bouton de reprise bien visible
+                const restoreBtn = document.createElement('button');
+                restoreBtn.className = "btn giant-btn action-btn";
+                restoreBtn.id = "restoreSessionBtnStart";
+                restoreBtn.innerHTML = `
+                    <span class="icon">🔄</span>
+                    <div class="text">
+                        <strong>Reprendre ma session précédente</strong>
+                        <span>Cliquez ici pour autoriser l'accès à votre dossier</span>
+                    </div>
+                `;
+                // On l'ajoute tout en haut de l'écran d'accueil
+                bigActions.prepend(restoreBtn);
+                
+                restoreBtn.onclick = async () => {
+                    if (await rootHandle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                        restoreBtn.remove();
+                        await runFullScan();
+                    }
+                };
+            }
+        } 
+        // 2. SI C'EST UN FICHIER JSON (Chargement 100% automatique !)
+        else if (savedAssets && savedAssets.length > 0) {
+            allAssets = savedAssets;
+            allAssets.forEach(a => { if (!(a.date instanceof Date)) a.date = new Date(a.date); });
+            renderGallery();
+            forceOpenSection('jsonSection');
+            updateAppVisibility();
+            updateFloatingActionBar();
+        }
+    } catch (e) { console.error("Session non chargée:", e); }
 }
-process.exit(failed ? 5 : 0);
+
+async function clearSession() {
+    if (!confirm("⚠️ Voulez-vous vraiment effacer toutes les données et fermer la session ?")) return;
+    try {
+        const db = await openDB();
+        const tx = db.transaction(storeName, "readwrite");
+        const store = tx.objectStore(storeName);
+        await store.clear();
+        rootHandle = null;
+        visitedSet = new Set();
+        selectedSet = new Set();
+        allAssets = [];
+        galleryItems = [];
+        authData = null;
+        billingData = null;
+        renderGallery();
+        updateAppVisibility();
+        updateFloatingActionBar();
+        const restoreBtn = document.getElementById('restoreSessionBtn');
+        if (restoreBtn) restoreBtn.remove();
+        alert("✅ Session fermée.");
+    } catch (e) { console.error(e); }
+}
+
+// ==========================================
+// UI, NAVIGATION & CHARGEMENT
+// ==========================================
+function setLoading(isLoading, message = "⏳ Analyse en cours...") { 
+    const status = document.getElementById('loadingStatus');
+    if (status) {
+        status.style.display = isLoading ? 'block' : 'none';
+        if (isLoading) status.textContent = message;
+    }
+}
+
+function toggleAccordion(targetId, el) { 
+    const allSections = ['jsonSection', 'linkedLocalSection', 'localSection'];
+    const targetSection = document.getElementById(targetId);
+    if (!targetSection) return;
+    
+    const isOpening = targetSection.classList.contains('hidden');
+
+    allSections.forEach(id => {
+        const sec = document.getElementById(id);
+        const header = sec ? sec.previousElementSibling : null;
+        
+        if (id === targetId && isOpening) {
+            if (sec) sec.classList.remove('hidden');
+            if (header) header.classList.remove('collapsed');
+            
+            const topBtnPC = document.querySelector(`.pc-tools .nav-anchor-btn[onclick*="${id}"]`);
+            if (topBtnPC) {
+                document.querySelectorAll('.pc-tools .nav-anchor-btn').forEach(b => b.classList.remove('active'));
+                topBtnPC.classList.add('active');
+            }
+            
+            const topBtnMobile = document.querySelector(`.bottom-sheet-modal .nav-anchor-btn[onclick*="${id}"]`);
+            if (topBtnMobile) {
+                document.querySelectorAll('.bottom-sheet-modal .nav-anchor-btn').forEach(b => b.classList.remove('active'));
+                topBtnMobile.classList.add('active');
+            }
+        } else {
+            if (sec) sec.classList.add('hidden');
+            if (header) header.classList.add('collapsed');
+        }
+    });
+}
+
+function forceOpenSection(id) {
+    const section = document.getElementById(id);
+    if (section) {
+        section.classList.add('hidden'); 
+        toggleAccordion(id, section.previousElementSibling);
+    }
+}
+
+window.scrollToSection = function(targetId, btnElement) {
+    toggleAccordion(targetId, document.getElementById(targetId).previousElementSibling);
+    setTimeout(() => {
+        document.getElementById(targetId).previousElementSibling.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+};
+
+window.scrollToSectionMobile = function(targetId, btnElement) {
+    scrollToSection(targetId, btnElement);
+    closeToolbarModal(); // Ferme la modale sur mobile après le clic
+};
+
+window.markAsVisited = function(url, el) { 
+    visitedSet.add(url); 
+    saveSession();
+    if(el) { el.classList.add('visited'); el.classList.remove('viewed'); } 
+};
+
+window.markAsViewed = function(el, url) { 
+    if (url) {
+        viewedSet.add(url); // On l'ajoute à la mémoire
+        saveSession();      // On sauvegarde en base de données
+    }
+    if (el && !el.classList.contains('viewed')) el.classList.add('viewed'); 
+};
+
+// ==========================================
+// IMPORT JSON ET SCANNAGE
+// ==========================================
+// ==========================================
+// IMPORT JSON (Mis à jour pour le nouveau format backend)
+// ==========================================
+async function handleJsonImport(file) {
+    setLoading(true, "📂 Importation du fichier JSON (backend)...");
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        
+        // Utilise la nouvelle fonction d'extraction (compatible ancien + nouveau format)
+        const rawPosts = extractMediaFromBackend(data);
+        
+        if (!rawPosts || rawPosts.length === 0) {
+            throw new Error("Aucun média trouvé dans le fichier.");
+        }
+
+        allAssets = rawPosts.map(p => {
+            const isVideo = p.media_type === 'video' || (p.url && String(p.url).includes('.mp4'));
+            const realPrompt = p.original_prompt || p.prompt || 
+                              (typeof p.message === 'string' ? p.message.substring(0, 200) : 'Génération Grok');
+            
+            return {
+                id: p.id,
+                prompt: realPrompt,
+                url: isVideo 
+                    ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
+                    : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
+                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
+                link: p.link || `https://grok.com/imagine/post/${p.id}`,
+                media_type: isVideo ? 'video' : 'image',
+                date: new Date(p.date || p.create_time || Date.now()),
+                source: 'Cloud'
+            };
+        }).filter(a => a.id); // On filtre les entrées sans ID
+
+        rootHandle = null; 
+        await saveSession(); 
+        renderGallery();
+        updateAppVisibility();
+        forceOpenSection('jsonSection');
+        
+        alert(`✅ ${allAssets.length} médias importés avec succès !`);
+    } catch (e) {
+        console.error(e);
+        alert("❌ Erreur d'importation : " + e.message);
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function runFullScan() {
+    setLoading(true, "🔍 Récupération des données...");
+    allAssets = [];
+    authData = null;
+    billingData = null;
+    
+    if (!rootHandle) {
+        setLoading(false);
+        return alert("⚠️ Aucun dossier sélectionné. Veuillez charger votre archive locale avant de lancer le scan.");
+    }
+
+    await scanDirectory(rootHandle);
+
+    // === Appariement intelligent Local ↔ Cloud ===
+    allAssets.forEach(asset => {
+        if (asset.source === 'Local') {
+            const cloudMatch = allAssets.find(a => 
+                a.source === 'Cloud' && a.id === asset.id
+            );
+            
+            if (cloudMatch) {
+                asset.prompt = cloudMatch.prompt;
+                asset.link = cloudMatch.link;
+                asset.hasCloudMatch = true;
+            } else {
+                asset.prompt = "Texte indisponible (Média orphelin)";
+                asset.hasCloudMatch = false;
+            }
+        }
+    });
+
+    setLoading(false);
+    renderGallery();
+    updateAppVisibility();
+    
+    if (allAssets.some(a => a.source === 'Cloud')) {
+        forceOpenSection('jsonSection');
+    } else if (allAssets.some(a => a.source === 'Local')) {
+        forceOpenSection('localSection');
+    }
+}
+
+async function scanDirectory(handle) {
+    if (!handle || typeof handle.values !== 'function') {
+        console.warn('scanDirectory: handle invalide ou non fourni', handle);
+        return;
+    }
+
+    for await (const entry of handle.values()) {
+        try {
+            if (entry.kind === 'file') {
+                const file = await entry.getFile();
+                
+                if (entry.name === 'prod-mc-auth-mgmt-api.json') {
+                    authData = JSON.parse(await file.text());
+                }
+                if (entry.name === 'prod-mc-billing.json') {
+                    billingData = JSON.parse(await file.text());
+                }
+                
+                if (entry.name === 'prod-grok-backend.json') {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    
+                    // Utilise la nouvelle fonction d'extraction (à ajouter aussi)
+                    const rawPosts = extractMediaFromBackend(data);
+                    
+                    rawPosts.forEach(p => {
+                        if (allAssets.some(a => a.id === p.id && a.source === 'Cloud')) return;
+                        
+                        const isVideo = p.media_type === 'video';
+                        const realPrompt = p.original_prompt || p.prompt || 
+                                         (typeof p.message === 'string' ? p.message.substring(0, 150) : 'Texte introuvable');
+                        
+                        allAssets.push({
+                            id: p.id,
+                            prompt: realPrompt,
+                            url: isVideo 
+                                ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
+                                : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
+                            poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
+                            link: p.link || `https://grok.com/imagine/post/${p.id}`,
+                            media_type: isVideo ? 'video' : 'image',
+                            date: new Date(p.create_time || p.date || Date.now()),
+                            source: 'Cloud'
+                        });
+                    });
+                }
+            } 
+            else if (entry.kind === 'directory') {
+                if (entry.name === 'prod-mc-asset-server') {
+                    // === GESTION DES ÉLÉMENTS LOCAUX ===
+                    for await (const sub of entry.values()) {
+                        if (sub.kind === 'directory') {
+                            for await (const aFile of sub.values()) {
+                                if (aFile.name.startsWith('content')) {
+                                    const file = await aFile.getFile();
+                                    allAssets.push({
+                                        id: sub.name,
+                                        prompt: sub.name,
+                                        url: URL.createObjectURL(file),
+                                        media_type: file.type.startsWith('video') ? 'video' : 'image',
+                                        date: new Date(file.lastModified),
+                                        source: 'Local',
+                                        parentHandle: sub,
+                                        grandParentHandle: entry
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    await scanDirectory(entry);
+                }
+            }
+        } catch (e) {
+            console.warn("Erreur scan:", e);
+        }
+    }
+}
+
+function extractMediaFromBackend(data) {
+    const assetsMap = new Map();
+
+    const normalize = (p) => {
+        if (!p) return null;
+        const id = p.id || p.asset_id || p.assetId || p.post_id || p.video_id || (p.link && String(p.link).split('/').pop()) || null;
+        if (!id) return null;
+
+        const prompt = p.original_prompt || p.prompt || p.message || p.caption || p.text || p.title || 'Importé';
+        const url = p.url || p.media_url || p.image_url || p.video_url || (p.attachments && p.attachments[0] && p.attachments[0].url) || null;
+        const media_type = p.media_type || (typeof url === 'string' && /\.(mp4|webm|mov|mkv)(\?|$)/i.test(url) ? 'video' : 'image');
+        const date = new Date(p.create_time || p.date || p.created_at || p.timestamp || Date.now());
+        const link = p.link || (id ? `https://grok.com/imagine/post/${id}` : null);
+
+        return {
+            id: String(id),
+            prompt: typeof prompt === 'string' ? prompt : String(prompt || ''),
+            original_prompt: p.original_prompt || null,
+            media_type: media_type || 'image',
+            url: url || null,
+            date,
+            link,
+            source: 'Cloud'
+        };
+    };
+
+    // 1) If the backend already exposes media_posts, normalize and return
+    if (data && Array.isArray(data.media_posts)) {
+        data.media_posts.forEach(p => {
+            const n = normalize(p);
+            if (n) assetsMap.set(n.id, n);
+        });
+        return Array.from(assetsMap.values());
+    }
+
+    // 2) Conversations format (responses with asset_ids or attachments)
+    if (data && Array.isArray(data.conversations)) {
+        data.conversations.forEach(conv => {
+            const convTitle = conv.conversation?.title || 'Sans titre';
+            if (Array.isArray(conv.responses)) {
+                conv.responses.forEach(response => {
+                    // If response contains explicit asset objects
+                    if (Array.isArray(response.assets)) {
+                        response.assets.forEach(a => {
+                            const merged = Object.assign({}, a, { message: response.message, title: convTitle, create_time: response.create_time || conv.conversation?.create_time });
+                            const n = normalize(merged);
+                            if (n) assetsMap.set(n.id, n);
+                        });
+                    }
+
+                    // If response lists asset_ids only
+                    if (Array.isArray(response.asset_ids)) {
+                        response.asset_ids.forEach(id => {
+                            const prompt = response.message ? (typeof response.message === 'string' ? response.message.substring(0, 180) : convTitle) : convTitle;
+                            const obj = {
+                                id,
+                                prompt,
+                                media_type: 'image',
+                                date: new Date(response.create_time || conv.conversation?.create_time || Date.now()),
+                                link: `https://grok.com/imagine/post/${id}`,
+                                source: 'Cloud'
+                            };
+                            const n = normalize(obj) || obj;
+                            assetsMap.set(String(id), n);
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    // 3) Generic arrays: posts, results, items
+    const tryArrayKeys = ['posts', 'results', 'items', 'data'];
+    for (const key of tryArrayKeys) {
+        if (data && Array.isArray(data[key])) {
+            data[key].forEach(p => {
+                const n = normalize(p);
+                if (n) assetsMap.set(n.id, n);
+            });
+        }
+    }
+
+    // 4) If the root object is already an array of items
+    if (Array.isArray(data)) {
+        data.forEach(p => {
+            const n = normalize(p);
+            if (n) assetsMap.set(n.id, n);
+        });
+    }
+
+    return Array.from(assetsMap.values());
+}
+
+function createCardElement(asset, idx) {
+    const isV = visitedSet.has(asset.url);
+    const isViewed = viewedSet.has(asset.url);
+    const card = document.createElement('div');
+    card.className = `media-card ${isV ? 'visited' : ''} ${isViewed ? 'viewed' : ''}`;
+
+    card.style.contentVisibility = 'auto';
+    card.style.containIntrinsicSize = '300px 400px';
+
+    const linkedCloud = allAssets.find(item => item.source === 'Cloud' && item.id === asset.id);
+    const displayDate = (linkedCloud && linkedCloud.date) ? linkedCloud.date : asset.date;
+    const dateTimeStr = displayDate.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    
+    card.dataset.date = dateTimeStr;
+    const isVideo = asset.media_type === 'video';
+    const isExpired = !isVideo && asset.url.includes('/share-images/');
+
+    card.innerHTML = `
+        <div class="media-container ${!isVideo ? 'is-image' : ''}" style="position: relative; background: #000;">
+            <div style="position: absolute; top: 5px; left: 5px; display: flex; gap: 4px; z-index: 2;">
+                <span class="badge type-badge ${asset.source.toLowerCase()}" style="position: static; ${isVideo ? 'background-color:#ff4444;color:#fff' : ''}">
+                    ${isVideo ? 'Vidéo' : 'Photo'}
+                </span>
+                ${isExpired ? `<span class="badge warning-badge" style="position: static; background:var(--warning); color:#000;">⚠️<span class="warning-text"> Expiré</span></span>` : ''}
+            </div>
+            
+            ${isVideo 
+                ? `<video class="lazy-video" data-src="${asset.url}#t=0.001" poster="${asset.poster || ''}" muted loop playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;z-index:3;">▶️</div>` 
+                : `<img src="${asset.url}" data-id="${asset.id}" loading="lazy" width="300" height="250" style="width:100%;height:100%;object-fit:cover;" onload="this.classList.add('loaded'); if(this.parentElement) this.parentElement.style.animation='none';" onerror="window.handleImgError(this)">`}
+            
+            <div class="card-number-badge" style="position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.7); color: #fff; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 8px; z-index: 15; pointer-events: none; border: 1px solid rgba(255,255,255,0.2); transition: opacity 0.3s;">
+            </div>
+        </div>
+        
+        <div class="info" style="padding: 12px; display: flex; flex-direction: column; justify-content: space-between; flex-grow: 1;">
+            <strong style="display: block; margin-bottom: 8px; font-size: 0.95rem; line-height: 1.3;">
+                ${isVideo ? '🎥 ' : ''}${asset.prompt.slice(0, 60)}${asset.prompt.length > 60 ? '...' : ''}
+            </strong>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
+                <div style="font-size:0.75rem; color:#888;">📅 ${dateTimeStr}</div>
+                
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; background: rgba(0,204,136,0.1); padding: 5px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; color: var(--visited); transition: 0.2s;" onclick="event.stopPropagation()" onmouseover="this.style.background='rgba(0,204,136,0.2)'" onmouseout="this.style.background='rgba(0,204,136,0.1)'">
+                    <input type="checkbox" data-url="${asset.url}" ${selectedSet.has(asset.url) ? 'checked' : ''} style="margin: 0; width: 16px; height: 16px;">
+                    Sélectionner
+                </label>
+            </div>
+        </div>`;
+
+    setupCardEvents(card, asset, idx, isVideo);
+    return card;
+}
+
+function setupCardEvents(card, asset, idx, isVideo) {
+    const checkbox = card.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) { selectedSet.add(this.dataset.url); } 
+            else { selectedSet.delete(this.dataset.url); }
+            saveSession();
+            updateFloatingActionBar();
+
+            const gridId = asset.source === 'Cloud' ? 'jsonLinks' : 'localFiles';
+            const selectAllCb = document.querySelector(`.select-all-cb[data-target-grid="${gridId}"]`);
+            if (selectAllCb) {
+                if (!this.checked) { selectAllCb.checked = false; } 
+                else {
+                    const grid = document.getElementById(gridId);
+                    const allCbs = grid.querySelectorAll('input[type="checkbox"]:not(.select-all-cb)');
+                    selectAllCb.checked = Array.from(allCbs).every(c => c.checked);
+                }
+            }
+        });
+    }
+
+    let isLongPress = false;
+    let touchTimer = null;
+
+// --- MISE À JOUR : Gestion de la lecture ---
+const forcePlayVideo = () => {
+        if (typeof isCompact !== 'undefined' && isCompact) return; 
+        if (isVideo) {
+            const v = card.querySelector('video');
+            if (v) {
+                // SÉCURITÉ : On vérifie le data-src ici aussi
+                if ((!v.src || v.src === "" || v.src.includes("undefined")) && v.dataset.src) {
+                    v.src = v.dataset.src;
+                    v.load();
+                }
+                v.play().catch(() => {});
+            }
+        }
+    };
+
+    const forcePauseVideo = () => { 
+        const v = card.querySelector('video'); 
+        if (v) {
+            v.pause();
+            // ATTENTION : On NE SUPPRIME PLUS le 'src' ici !
+            // On laisse la vidéo afficher sa première frame. 
+            // C'est l'Observer qui supprimera le 'src' quand on fera défiler la page.
+        } 
+    };
+
+    card.onmouseenter = forcePlayVideo;
+    card.onmouseleave = forcePauseVideo;
+
+if (isVideo) {
+        card.addEventListener('touchstart', () => {
+            isLongPress = false;
+            touchTimer = setTimeout(() => { isLongPress = true; forcePlayVideo(); }, 400);
+        }, { passive: true });
+        const cancelTouch = () => { clearTimeout(touchTimer); forcePauseVideo(); };
+        card.addEventListener('touchend', cancelTouch, { passive: true });
+        card.addEventListener('touchcancel', cancelTouch, { passive: true });
+        card.addEventListener('touchmove', cancelTouch, { passive: true });
+    }
+
+    card.onclick = (e) => {
+        if (isLongPress) { e.preventDefault(); isLongPress = false; return; }
+        markAsViewed(card, asset.url); // Mémorisation persistante de la vue
+        openLightbox(idx); 
+    };
+
+    // On s'assure que l'observer gère l'apparition/disparition à l'écran
+    if (isVideo && videoObserver) { videoObserver.observe(card.querySelector('video')); }
+}
+
+function updateCounters(filtered) {
+    const cloudLen = filtered.filter(a => a.source === 'Cloud').length;
+    const matchedLen = filtered.filter(a => a.source === 'Local' && a.hasCloudMatch).length;
+    const unmatchedLen = filtered.filter(a => a.source === 'Local' && !a.hasCloudMatch).length;
+    
+    const elements = { 'numberImg': unmatchedLen, 'numberLinkedLocalTop': matchedLen, 'numberLink': cloudLen, 'numberLinkedLocal': matchedLen, 'numberImg2': unmatchedLen, 'numberLink2': cloudLen };
+    for (const [id, value] of Object.entries(elements)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    }
+}
+
+
+// ==========================================
+// RECHARGEMENT DE LA VUE (Bouton 🔄)
+// ==========================================
+window.refreshGalleryView = function() {
+    setLoading(true, "🔄 Actualisation des éléments...");
+
+    // 1. On mémorise l'état exact de votre page
+    const targetCloud = cloudIndex > 0 ? cloudIndex : CHUNK_SIZE;
+    const targetLinked = linkedIndex > 0 ? linkedIndex : CHUNK_SIZE;
+    const targetOrphan = orphanIndex > 0 ? orphanIndex : CHUNK_SIZE;
+    const currentScroll = window.scrollY; // On retient votre position de défilement
+
+    // 2. On vide complètement l'affichage
+    if (jsonLinksEl) jsonLinksEl.innerHTML = '';
+    if (linkedLocalFilesEl) linkedLocalFilesEl.innerHTML = '';
+    if (localFilesEl) localFilesEl.innerHTML = '';
+
+    // 3. On remet les compteurs à zéro et on met en pause l'Observer
+    cloudIndex = 0;
+    linkedIndex = 0;
+    orphanIndex = 0;
+    if (videoObserver) videoObserver.disconnect();
+
+    // 4. On demande au navigateur de recharger les blocs jusqu'à atteindre l'ancien nombre
+    let previousTotal = -1;
+    while (cloudIndex < targetCloud || linkedIndex < targetLinked || orphanIndex < targetOrphan) {
+        let currentTotal = cloudIndex + linkedIndex + orphanIndex;
+        if (currentTotal === previousTotal) break; // Sécurité (évite de tourner en boucle si on est à la fin)
+        previousTotal = currentTotal;
+        
+        if (typeof window.loadNextChunk === 'function') {
+            window.loadNextChunk();
+        } else {
+            break;
+        }
+    }
+
+    // 5. On vous remet exactement à votre place et on cache le chargement
+    setTimeout(() => {
+        window.scrollTo({ top: currentScroll, behavior: 'instant' });
+        updateFloatingActionBar();
+        setLoading(false);
+    }, 100); // 100ms de délai pour laisser au navigateur le temps de dessiner les images
+};
+
+
+
+function renderGallery() {
+    cloudIndex = 0; linkedIndex = 0; orphanIndex = 0;
+    document.querySelectorAll('.select-all-cb').forEach(cb => cb.checked = false);
+
+    const typeF = document.getElementById('sortTypePC')?.value || 'all';
+    const dateO = document.getElementById('sortDatePC')?.value || 'date-desc';
+    
+    const filtered = allAssets.filter(a => typeF === 'all' || a.media_type === typeF);
+    
+    cloudItems = filtered.filter(a => a.source === 'Cloud');
+    linkedItems = filtered.filter(a => a.source === 'Local' && a.hasCloudMatch);
+    orphanItems = filtered.filter(a => a.source === 'Local' && !a.hasCloudMatch);
+
+    const sortFn = (a, b) => dateO === 'date-desc' ? b.date - a.date : a.date - b.date;
+    cloudItems.sort(sortFn); linkedItems.sort(sortFn); orphanItems.sort(sortFn);
+
+    galleryItems = [...cloudItems, ...linkedItems, ...orphanItems];
+    
+    if (jsonLinksEl) jsonLinksEl.innerHTML = ''; 
+    if (localFilesEl) localFilesEl.innerHTML = '';
+    if (linkedLocalFilesEl) linkedLocalFilesEl.innerHTML = ''; 
+
+    if (videoObserver) videoObserver.disconnect();
+
+    window.loadNextChunk = function() {
+        if (cloudIndex >= cloudItems.length && linkedIndex >= linkedItems.length && orphanIndex >= orphanItems.length) return;
+
+        const cloudFrag = document.createDocumentFragment();
+        const linkedFrag = document.createDocumentFragment();
+        const orphanFrag = document.createDocumentFragment();
+
+        const cloudLimit = Math.min(cloudIndex + CHUNK_SIZE, cloudItems.length);
+        cloudItems.slice(cloudIndex, cloudLimit).forEach((asset, i) => { cloudFrag.appendChild(createCardElement(asset, cloudIndex + i)); });
+        cloudIndex = cloudLimit;
+
+        const linkedLimit = Math.min(linkedIndex + CHUNK_SIZE, linkedItems.length);
+        linkedItems.slice(linkedIndex, linkedLimit).forEach((asset, i) => { linkedFrag.appendChild(createCardElement(asset, cloudItems.length + linkedIndex + i)); });
+        linkedIndex = linkedLimit;
+
+        const orphanLimit = Math.min(orphanIndex + CHUNK_SIZE, orphanItems.length);
+        orphanItems.slice(orphanIndex, orphanLimit).forEach((asset, i) => { orphanFrag.appendChild(createCardElement(asset, cloudItems.length + linkedItems.length + orphanIndex + i)); });
+        orphanIndex = orphanLimit;
+
+        if (cloudFrag.children.length > 0 && jsonLinksEl) jsonLinksEl.appendChild(cloudFrag);
+        if (linkedFrag.children.length > 0 && linkedLocalFilesEl) linkedLocalFilesEl.appendChild(linkedFrag);
+        if (orphanFrag.children.length > 0 && localFilesEl) localFilesEl.appendChild(orphanFrag);
+    };
+
+    loadNextChunk();
+    updateCounters(filtered);
+
+    if (cloudItems.length > 0) forceOpenSection('jsonSection');
+    else if (linkedItems.length > 0) forceOpenSection('linkedLocalSection');
+    else if (orphanItems.length > 0) forceOpenSection('localSection');
+}
+
+window.handleImgError = function(img) {
+    if (img.dataset.failed) return;
+    
+    const assetId = img.dataset.id;
+    const currentAsset = allAssets.find(a => a.id === assetId);
+    
+    // 1. ÉTAPE FINALE : Vraie Collection (On génère une image vide avec du texte SVG local, plus de lien externe !)
+    const setCollectionDisplay = () => {
+        img.dataset.failed = "true"; 
+        img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%2316161e'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14px' fill='%2300cc88'%3EErreur de chargement%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='12px' fill='%23888888'%3E(Lien Grok)%3C/text%3E%3C/svg%3E";
+        img.classList.add('loaded'); 
+        img.style.objectFit = 'contain'; 
+        if (img.parentElement) img.parentElement.style.animation = 'none';
+        
+        const card = img.closest('.media-card');
+        if (card) {
+            card.style.borderColor = 'var(--cloud)'; 
+            const warningBadge = card.querySelector('.warning-badge');
+            if (warningBadge) warningBadge.style.display = 'none';
+        }
+    };
+
+    // 2. ÉTAPE VIDÉO
+    const tryAsVideo = () => {
+        let videoUrl = img.src.replace(/\/images\/|\/share-images\//, '/share-videos/').replace('.jpg', '.mp4');
+        let testVideo = document.createElement('video');
+        
+        testVideo.onloadedmetadata = () => {
+            const container = img.parentElement;
+            if (container) {
+                container.classList.remove('is-image');
+                container.style.animation = 'none';
+                
+                const typeBadge = container.querySelector('.type-badge');
+                if (typeBadge) {
+                    typeBadge.textContent = 'Vidéo';
+                    typeBadge.style.backgroundColor = '#ff4444';
+                    typeBadge.style.color = '#fff';
+                }
+                
+                const warningBadge = container.querySelector('.warning-badge');
+                if (warningBadge) warningBadge.style.display = 'none';
+
+                const newVideo = document.createElement('video');
+                newVideo.className = 'lazy-video';
+                newVideo.dataset.src = videoUrl + "#t=0.001";
+                newVideo.muted = true;
+                newVideo.loop = true;
+                newVideo.playsInline = true;
+                newVideo.preload = "metadata";
+                newVideo.style.width = "100%";
+                newVideo.style.height = "100%";
+                newVideo.style.objectFit = "cover";
+
+                const playIcon = document.createElement('div');
+                playIcon.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:2rem;opacity:0.6;z-index:3";
+                playIcon.textContent = "▶️";
+
+                container.replaceChild(newVideo, img);
+                container.appendChild(playIcon);
+
+                const card = container.closest('.media-card');
+                if (card) {
+                    card.onmouseenter = () => {
+                        if (typeof isCompact !== 'undefined' && isCompact) return;
+                        if (!autoPlayVideo) newVideo.play().catch(() => {});
+                    };
+                    card.onmouseleave = () => newVideo.pause();
+                    
+                    if (autoPlayVideo) {
+                        const rect = newVideo.getBoundingClientRect();
+                        if (rect.top < window.innerHeight && rect.bottom >= 0) newVideo.play().catch(() => {});
+                    }
+
+                    const checkbox = card.querySelector('input[type="checkbox"]');
+                    if (checkbox) {
+                        checkbox.dataset.url = videoUrl;
+                        if (currentAsset) { currentAsset.url = videoUrl; currentAsset.media_type = 'video'; }
+                        const gAsset = galleryItems.find(a => a.id === assetId);
+                        if (gAsset) { gAsset.url = videoUrl; gAsset.media_type = 'video'; }
+                    }
+                    // NOUVEAU : On donne la nouvelle vidéo à notre nettoyeur de mémoire !
+                    if (videoObserver) videoObserver.observe(newVideo);
+                }
+            }
+        };
+        testVideo.onerror = setCollectionDisplay; 
+        testVideo.src = videoUrl;
+    };
+
+    // 3. ÉTAPE COLLECTION : CORRIGÉE
+    const trySibling = () => {
+        // NOUVEAU : On ignore les textes génériques pour éviter de cloner la même image partout
+        const ignoredPrompts = ['Importé', 'Texte introuvable', 'Texte indisponible (Média orphelin)', ''];
+        
+        if (currentAsset && !img.dataset.triedSibling && currentAsset.prompt && !ignoredPrompts.includes(currentAsset.prompt.trim())) {
+            img.dataset.triedSibling = "true";
+            
+            const sibling = allAssets.find(a => a.prompt === currentAsset.prompt && a.id !== currentAsset.id && a.media_type === 'image' && a.url);
+            
+            if (sibling) {
+                let tester = new Image();
+                tester.onload = () => {
+                    img.src = sibling.url;
+                    img.classList.add('loaded');
+                    if (img.parentElement) img.parentElement.style.animation = 'none';
+                    
+                    if (currentAsset) currentAsset.url = sibling.url;
+                    const gAsset = galleryItems.find(a => a.id === assetId);
+                    if (gAsset) gAsset.url = sibling.url;
+                    
+                    const checkbox = img.closest('.media-card')?.querySelector('input[type="checkbox"]');
+                    if (checkbox) checkbox.dataset.url = sibling.url;
+
+                    const container = img.parentElement;
+                    if (container && !container.querySelector('.collection-badge')) {
+                        let badge = document.createElement('span');
+                        badge.className = 'badge collection-badge';
+                        // Position corrigée (top/left en auto)
+                        badge.style.cssText = "position:absolute; top:auto; left:auto; bottom:5px; right:5px; background:var(--cloud); color:#fff; font-size:0.65rem; border-radius:4px; padding:2px 6px; z-index:2;";
+                        badge.textContent = "📚 Collection";
+                        container.appendChild(badge);
+                    }
+                };
+                tester.onerror = tryAsVideo; 
+                tester.src = sibling.url;
+            } else {
+                tryAsVideo(); 
+            }
+        } else {
+            tryAsVideo();
+        }
+    };
+
+    // 4. PREMIÈRE ÉTAPE : Tenter le /share-images/
+    if (!img.dataset.triedShare) {
+        let newUrl = img.src.replace('/imagine-public/images/', '/imagine-public/share-images/');
+        if (newUrl !== img.src) {
+            img.dataset.triedShare = "true";
+            let tester = new Image();
+            tester.onload = () => { 
+                img.src = newUrl; 
+                img.classList.add('loaded'); 
+                if (img.parentElement) img.parentElement.style.animation = 'none'; 
+                if (currentAsset) currentAsset.url = newUrl;
+                const gAsset = galleryItems.find(a => a.id === assetId);
+                if (gAsset) gAsset.url = newUrl;
+            };
+            tester.onerror = trySibling; 
+            tester.src = newUrl;
+        } else {
+            trySibling();
+        }
+    }
+};
+
+
+
+
+
+// ==========================================
+// BARRE FLOTTANTE & CHECKBOX
+// ==========================================
+function updateFloatingActionBar() {
+    const fab = document.getElementById('floatingActionBar');
+    const countText = document.getElementById('selectedCountText');
+    const count = selectedSet.size;
+
+    if (count > 0) {
+        if(countText) countText.textContent = count;
+        if(fab) fab.classList.add('visible');
+    } else {
+        if(fab) fab.classList.remove('visible');
+    }
+}
+
+function setupSelectAllCheckboxes() {
+    const setups = [
+        { section: 'jsonSection', grid: 'jsonLinks' }, 
+        { section: 'linkedLocalSection', grid: 'linkedLocalFiles' },
+        { section: 'localSection', grid: 'localFiles' }
+    ];
+    setups.forEach(({section, grid}) => {
+        const secEl = document.getElementById(section);
+        if (!secEl) return;
+        const header = secEl.previousElementSibling;
+        if (!header) return;
+        const h2 = header.querySelector('h2');
+        if (!h2 || h2.querySelector('.select-all-cb')) return;
+        
+        const label = document.createElement('label');
+        label.style.marginLeft = '15px'; label.style.fontSize = '0.85rem'; label.style.display = 'inline-flex'; label.style.alignItems = 'center'; label.style.cursor = 'pointer'; label.style.fontWeight = 'normal'; label.style.background = 'rgba(255, 255, 255, 0.1)'; label.style.padding = '4px 10px'; label.style.borderRadius = '15px'; label.onclick = (e) => e.stopPropagation();
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.className = 'select-all-cb'; cb.dataset.targetGrid = grid; cb.style.marginRight = '8px'; cb.style.width = '16px'; cb.style.height = '16px';
+        
+        cb.onchange = (e) => {
+            const targetGrid = document.getElementById(grid);
+            if (targetGrid) {
+                const checkboxes = targetGrid.querySelectorAll('input[type="checkbox"]:not(.select-all-cb)');
+                checkboxes.forEach(c => {
+                    c.checked = e.target.checked;
+                    if (c.checked) { selectedSet.add(c.dataset.url); } 
+                    else { selectedSet.delete(c.dataset.url); }
+                });
+                if (typeof saveSession === 'function') saveSession();
+                updateFloatingActionBar();
+            }
+        };
+        label.appendChild(cb); label.appendChild(document.createTextNode('Tout sélectionner')); h2.appendChild(label);
+    });
+}
+
+// ==========================================
+// TÉLÉCHARGEMENT & ACTIONS
+// ==========================================
+window.downloadLocalMedia = function(url, id, type) {
+    const a = document.createElement('a'); a.href = url; a.download = `local-${id}.${type === 'video' ? 'mp4' : 'jpg'}`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+};
+
+window.downloadSelectedMedia = async function() {
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
+    const localSelected = allAssets.filter(a => checked.includes(a.url) && a.source === 'Local');
+
+    if (localSelected.length === 0) return;
+    if (localSelected.length > 50 && !confirm(`Compresser ${localSelected.length} fichiers peut prendre du temps. Continuer ?`)) return;
+
+    setLoading(true, "📦 Création de l'archive ZIP en cours...");
+
+    try {
+        const zip = new JSZip();
+        const folder = zip.folder("Grok_Export_Local");
+
+        for (let i = 0; i < localSelected.length; i++) {
+            const asset = localSelected[i];
+            const filename = `local-${asset.id}.${asset.media_type === 'video' ? 'mp4' : 'jpg'}`;
+            const response = await fetch(asset.url);
+            const blob = await response.blob();
+            folder.file(filename, blob);
+        }
+
+        const zipContent = await zip.generateAsync({ type: "blob" });
+        const zipUrl = URL.createObjectURL(zipContent);
+
+        const a = document.createElement('a');
+        a.href = zipUrl;
+        a.download = `Media-Export-${Date.now()}.zip`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(zipUrl), 2000);
+
+    } catch (error) { alert("❌ Erreur lors de la compression des fichiers."); } 
+    finally { setLoading(false); }
+};
+
+async function deleteSelected() {
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
+    const toDelete = allAssets.filter(a => a.source === 'Local' && checked.includes(a.url));
+    if (!toDelete.length) return alert("Sélectionnez des fichiers sur votre ordinateur.");
+    if (!confirm(`Supprimer ${toDelete.length} dossiers ?`)) return;
+    
+    setLoading(true, "🗑️ Suppression...");
+    try {
+        if (await rootHandle.queryPermission({mode: 'readwrite'}) !== 'granted') await rootHandle.requestPermission({mode: 'readwrite'});
+        for (const asset of toDelete) {
+            await asset.grandParentHandle.removeEntry(asset.parentHandle.name, { recursive: true });
+            URL.revokeObjectURL(asset.url);
+        }
+        allAssets = allAssets.filter(a => !toDelete.includes(a));
+        renderGallery();
+        selectedSet.clear();
+        updateFloatingActionBar();
+    } catch (err) { alert("Erreur de permission."); }
+    finally { setLoading(false); }
+}
+
+window.downloadFile = function() { 
+    if (currentExportData) { const a = document.createElement('a'); a.href = currentExportData.url; a.download = currentExportData.name; a.click(); }
+};
+
+window.downloadPrompt = function(promptText, id) {
+    const blob = new Blob([promptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prompt-grok-${id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+window.openSelectedInBrowser = function() {
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
+    const selectedWithLinks = allAssets.filter(a => checked.includes(a.url) && a.link);
+
+    if (selectedWithLinks.length === 0) return alert("Aucun lien disponible pour cette sélection.");
+    if (selectedWithLinks.length > 15 && !confirm(`Ouvrir ${selectedWithLinks.length} onglets ? Cela peut ralentir votre navigateur.`)) return;
+
+    selectedWithLinks.forEach(asset => { window.open(asset.link, '_blank'); });
+};
+
+
+// ==========================================
+// LIGHTBOX (Visionneuse d'image)
+// ==========================================
+function openLightbox(index) {
+    currentLightboxIndex = index;
+    const asset = galleryItems[index]; 
+    if (!asset) return;
+
+    // --- NOUVEAUTÉ : Marquer la carte comme "Vue" même en naviguant ---
+    // On cherche la case à cocher qui possède l'URL de l'image actuelle
+    const checkbox = document.querySelector(`input[data-url="${asset.url}"]`);
+    if (checkbox) {
+        const card = checkbox.closest('.media-card');
+        if (card) markAsViewed(card, asset.url); // NOUVEAU : On passe l'URL ici aussi !
+    } else {
+        markAsViewed(null, asset.url); // Même si la carte n'est pas trouvée, on mémorise l'URL
+    }
+
+    const lightbox = document.getElementById('lightbox');
+    const content = document.getElementById('lightboxContent'); 
+    if (content) content.innerHTML = '';
+
+    if (asset.media_type === 'video') {
+        const video = document.createElement('video');
+        video.src = asset.url; video.controls = true; video.autoplay = true;
+        video.style.maxWidth = '100%'; video.style.maxHeight = '85vh';
+        if (content) content.appendChild(video);
+    } else {
+        const img = document.createElement('img');
+        img.src = asset.url; img.style.maxWidth = '100%'; img.style.maxHeight = '85vh'; img.style.objectFit = 'contain';
+        img.onerror = () => { if (img.src.includes('/images/')) { img.src = img.src.replace('/images/', '/share-images/'); } };
+        if (content) content.appendChild(img);
+    }
+
+    const footer = document.getElementById('lightboxUrlItem');
+    if (footer) {
+        footer.innerHTML = ''; 
+        footer.style.display = 'flex'; footer.style.flexDirection = 'column'; footer.style.alignItems = 'center'; footer.style.gap = '10px'; footer.style.padding = '15px'; footer.style.background = 'rgba(0,0,0,0.7)'; footer.style.borderRadius = '12px'; footer.style.maxWidth = '80%'; footer.style.margin = '0 auto'; footer.style.bottom = '60px'; 
+
+        const promptText = document.createElement('p');
+        promptText.style.margin = '0'; promptText.style.color = '#fff'; promptText.style.fontSize = '0.9rem'; promptText.style.lineHeight = '1.4'; promptText.style.whiteSpace = 'pre-wrap'; promptText.style.textAlign = 'center';
+        promptText.textContent = asset.prompt;
+        footer.appendChild(promptText);
+
+        const actionBtns = document.createElement('div');
+        actionBtns.style.display = 'flex'; actionBtns.style.gap = '10px'; actionBtns.style.marginTop = '5px';
+        footer.appendChild(actionBtns);
+
+        if (asset.link) {
+            const linkBtn = document.createElement('a');
+            linkBtn.href = asset.link; linkBtn.target = '_blank'; linkBtn.className = 'btn grok-link-btn'; linkBtn.style.padding = '8px 15px'; linkBtn.style.fontSize = '0.8rem'; linkBtn.innerHTML = '🔗 VOIR SUR GROK';
+            linkBtn.onclick = (e) => e.stopPropagation(); 
+            actionBtns.appendChild(linkBtn);
+        }
+
+        if (asset.source === 'Local') {
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'btn primary-btn'; dlBtn.style.padding = '8px 15px'; dlBtn.style.fontSize = '0.8rem';
+            dlBtn.innerHTML = '📥 TÉLÉCHARGER';
+            dlBtn.onclick = (e) => { e.stopPropagation(); downloadLocalMedia(asset.url, asset.id, asset.media_type); };
+            actionBtns.appendChild(dlBtn);
+        }
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn secondary outline-btn'; copyBtn.style.padding = '8px 15px'; copyBtn.style.fontSize = '0.8rem'; copyBtn.style.borderColor = '#fff'; copyBtn.style.color = '#fff'; copyBtn.innerHTML = '📝 LIRE PROMPT';
+        copyBtn.onclick = (e) => {
+            e.stopPropagation(); 
+            openPromptModal(asset.prompt, asset.id);
+        };
+        actionBtns.appendChild(copyBtn);
+    }
+
+    if (lightbox) lightbox.style.display = 'flex';
+}
+
+window.closeLightbox = function() { 
+    const lb = document.getElementById('lightbox'); if(lb) lb.style.display = 'none'; 
+    const lbContent = document.getElementById('lightboxContent'); if(lbContent) lbContent.innerHTML = ''; 
+};
+
+window.nextMedia = function() { openLightbox((currentLightboxIndex + 1) % galleryItems.length); };
+window.prevMedia = function() { openLightbox((currentLightboxIndex - 1 + galleryItems.length) % galleryItems.length); };
+
+
+// ==========================================
+// MODALES (Menu, Profil, Export, Prompt)
+// ==========================================
+window.openSettingsModal = function() { const modal = document.getElementById('settingsModal'); if (modal) modal.style.display = 'flex'; };
+window.closeSettingsModal = function() { const modal = document.getElementById('settingsModal'); if (modal) modal.style.display = 'none'; };
+
+window.openToolbarModal = function() { 
+    const modal = document.getElementById('toolbarModal');
+    if (modal) {
+        modal.style.display = 'flex'; // 1. On allume l'écran noir de fond
+        // 2. On attend une micro-seconde, puis on fait glisser le menu vers le haut
+        setTimeout(() => modal.classList.add('open'), 10); 
+    }
+};
+
+window.closeToolbarModal = function() { 
+    const modal = document.getElementById('toolbarModal');
+    if (modal) {
+        modal.classList.remove('open'); // 1. On fait glisser le menu vers le bas
+        // 2. On attend la fin de l'animation (400ms) pour éteindre l'écran noir
+        setTimeout(() => modal.style.display = 'none', 400); 
+    }
+};
+
+window.openPromptModal = function(promptText, id) {
+    currentPromptData = { text: promptText, id: id };
+    const modalText = document.getElementById('fullPromptText');
+    const modal = document.getElementById('promptModal');
+    if (modalText && modal) {
+        modalText.textContent = promptText; 
+        modal.style.display = 'flex';
+    }
+};
+window.closePromptModal = function() {
+    const modal = document.getElementById('promptModal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.openProfileModal = function() {
+    if(!authData) return alert("Chargez une archive complète pour voir votre profil.");
+    const u = authData.user;
+    if(document.getElementById('userName')) document.getElementById('userName').textContent = `${u.givenName} ${u.familyName[0]}.`;
+    if(document.getElementById('userEmail')) document.getElementById('userEmail').textContent = u.email.replace(/(.{3})(.*)(?=@)/, "$1***");
+    const bal = billingData ? (billingData.balance_map["21583193-d632-4a53-9eae-b3c55a2b2b06"] || 0) : 0;
+    if(document.getElementById('userBalance')) document.getElementById('userBalance').textContent = `${bal} $`;
+    if(document.getElementById('sessionCount')) document.getElementById('sessionCount').textContent = authData.sessions.length;
+    const list = document.getElementById('sessionList');
+    if(list) {
+        list.innerHTML = '';
+        authData.sessions.slice(0, 8).forEach(s => {
+            const r = document.createElement('tr');
+            r.innerHTML = `<td>${s.cfMetadata.city || "N/A"}</td><td>${s.userAgent.includes("Android") ? "📱 Mobile" : "💻 Web"}</td><td>${new Date(s.lastAuthTime).toLocaleDateString()}</td>`;
+            list.appendChild(r);
+        });
+    }
+    const pm = document.getElementById('profileModal');
+    if(pm) pm.style.display = 'flex';
+};
+window.closeProfileModal = function() { const pm = document.getElementById('profileModal'); if(pm) pm.style.display = 'none'; };
+window.closePopup = function() { const sp = document.getElementById('sharePopup'); if(sp) sp.style.display = 'none'; };
+
+
+function safeBind(id, eventType, handler) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(eventType, handler);
+}
+
+// ==========================================
+// INITIALISATION & ÉVÉNEMENTS
+// ==========================================
+window.onload = async () => { 
+    await loadSession(); 
+    setupSelectAllCheckboxes(); 
+    updateAppVisibility(); 
+
+    // Bouton de téléchargement du Prompt
+    const downloadBtn = document.getElementById('downloadPromptConfirmBtn');
+    if (downloadBtn) {
+        downloadBtn.onclick = () => {
+            if (currentPromptData.text) {
+                window.downloadPrompt(currentPromptData.text, currentPromptData.id);
+            }
+        };
+    }
+};
+
+// Accueil : Charger le dossier
+safeBind('loadArchiveBtnStart', 'click', async () => {
+    if (!window.showDirectoryPicker) return alert("Veuillez utiliser un navigateur récent (Chrome, Edge).");
+    try { rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' }); await saveSession(); await runFullScan(); } 
+    catch (e) { if (e.name !== 'AbortError') console.error(e); }
+});
+
+// Accueil : Charger le JSON
+safeBind('importJsonBtnStart', 'click', () => { 
+    const fileInput = document.getElementById('jsonFileInputStart') || document.getElementById('jsonFileInput'); 
+    if(fileInput) fileInput.click(); 
+});
+safeBind('jsonFileInputStart', 'change', (e) => { if (e.target.files[0]) handleJsonImport(e.target.files[0]); e.target.value = ''; });
+safeBind('jsonFileInput', 'change', (e) => { if (e.target.files[0]) handleJsonImport(e.target.files[0]); e.target.value = ''; });
+
+// Barre Flottante : Actions
+safeBind('fabExportBtn', 'click', () => {
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.dataset.url);
+    const selected = allAssets.filter(a => checked.includes(a.url));
+    if (!selected.length) return;
+    
+    const localCount = selected.filter(a => a.source === 'Local').length;
+    const linkCount = selected.filter(a => a.link).length; 
+    
+    const popupContent = document.querySelector('#sharePopup .popup-content');
+    if (popupContent) {
+        let mediaBtnHtml = localCount > 0 ? `<button class="btn" id="mediaDownloadBtn" style="width:100%;background:#00ffaa;color:#000;">📦 Télécharger les images/vidéos (${localCount})</button>` : `<p style="font-size: 0.8rem; color: #ffa500; margin-bottom: 5px;">⚠️ Médias en ligne : utilisez le clic droit sur l'image pour l'enregistrer.</p>`;
+        let openLinksBtnHtml = linkCount > 0 ? `<button class="btn action-btn" id="openLinksBtn" style="width:100%; margin-bottom:10px; background:var(--visited); color:#000;">🌐 Ouvrir dans Grok (${linkCount} onglets)</button>` : '';
+
+        popupContent.innerHTML = `
+            <h2 style="margin-bottom:15px;">✅ ${selected.length} éléments</h2>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="btn primary-btn" id="jsonDownloadBtn" style="width:100%">📄 Créer votre bibliothèque (.json)</button>
+                ${mediaBtnHtml}
+                ${openLinksBtnHtml}
+                <button class="btn secondary" style="width:100%" onclick="closePopup()">Annuler</button>
+            </div>`;
+            
+        const exportData = selected.map(a => ({ id: a.id, prompt: a.prompt, media_type: a.media_type, url: a.url, date: a.date.toISOString(), link: a.link }));
+        const blob = new Blob([JSON.stringify({ media_posts: exportData }, null, 2)], { type: 'application/json' });
+        currentExportData = { url: URL.createObjectURL(blob), name: `export-${Date.now()}.json` };
+        document.getElementById('jsonDownloadBtn').onclick = () => { const a = document.createElement('a'); a.href = currentExportData.url; a.download = currentExportData.name; a.click(); };
+        
+        if (localCount > 0) document.getElementById('mediaDownloadBtn').onclick = () => { closePopup(); downloadSelectedMedia(); };
+        if (linkCount > 0) document.getElementById('openLinksBtn').onclick = () => { closePopup(); window.openSelectedInBrowser(); };
+    }
+    
+    const sp = document.getElementById('sharePopup');
+    if(sp) sp.style.display = 'flex';
+});
+
+safeBind('fabDeleteBtn', 'click', deleteSelected);
+
+safeBind('fabCancelBtn', 'click', () => {
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    selectedSet.clear();
+    saveSession();
+    updateFloatingActionBar();
+});
+
+// Synchro des tris PC / Mobile
+['sortTypePC', 'sortTypeMobile', 'sortDatePC', 'sortDateMobile'].forEach(id => {
+    safeBind(id, 'change', (e) => {
+        const otherId = id.includes('PC') ? id.replace('PC', 'Mobile') : id.replace('Mobile', 'PC');
+        const otherEl = document.getElementById(otherId); if(otherEl) otherEl.value = e.target.value;
+        setLoading(true, "⏳ Application du tri..."); setTimeout(() => { try { renderGallery(); } finally { setLoading(false); } }, 50); 
+    });
+});
+
+// Menu principal et Mobile
+safeBind('openToolsBtn', 'click', openToolbarModal);
+safeBind('closeToolsBtn', 'click', closeToolbarModal);
+safeBind('closeToolsBtnBottom', 'click', closeToolbarModal);
+
+const toggleThemeMenu = document.getElementById('toggleThemeMenu');
+let isDark = true;
+if (toggleThemeMenu) {
+    toggleThemeMenu.addEventListener('click', () => {
+        isDark = !isDark;
+        document.body.classList.toggle('light', !isDark);
+        toggleThemeMenu.textContent = isDark ? '☀️ Passer au thème Clair' : '🌙 Passer au thème Sombre';
+    });
+}
+safeBind('clearSessionBtnMenu', 'click', () => { closeSettingsModal(); clearSession(); });
+
+// ==========================================
+// AUTOPLAY VIDÉOS (PC & Mobile)
+// ==========================================
+const desktopAutoPlayBtn = document.getElementById('desktopAutoPlayBtn');
+const mobileAutoPlayBtn = document.getElementById('mobileAutoPlayBtn');
+
+function updateAutoPlayUI() {
+    if (desktopAutoPlayBtn) {
+        desktopAutoPlayBtn.innerHTML = autoPlayVideo ? '▶️ Vidéos auto' : '⏸️ Vidéos pauses';
+    }
+    if (mobileAutoPlayBtn) {
+        mobileAutoPlayBtn.innerHTML = autoPlayVideo ? '<span class="icon">▶️</span><span class="label">Auto</span>' : '<span class="icon">⏸️</span><span class="label">Pause</span>';
+    }
+}
+
+function toggleAutoPlay() {
+    autoPlayVideo = !autoPlayVideo;
+    localStorage.setItem('grokAutoPlay', autoPlayVideo);
+    updateAutoPlayUI();
+    
+    document.querySelectorAll('.lazy-video').forEach(video => {
+        if (autoPlayVideo) {
+            const rect = video.getBoundingClientRect();
+            if (rect.top < window.innerHeight && rect.bottom >= 0) {
+                video.play().catch(() => {});
+            }
+        } else { 
+            video.pause(); 
+            video.removeAttribute('src'); // On purge Chrome
+            video.load();
+        }
+    });
+}
+
+// Relier les clics aux boutons respectifs
+if (desktopAutoPlayBtn) desktopAutoPlayBtn.addEventListener('click', toggleAutoPlay);
+if (mobileAutoPlayBtn) mobileAutoPlayBtn.addEventListener('click', toggleAutoPlay);
+
+// Mettre à jour l'affichage au démarrage
+updateAutoPlayUI();
+
+window.onclick = (e) => { 
+    if(e.target.id === 'profileModal' || e.target.classList.contains('modal-overlay')) { closeProfileModal(); closeSettingsModal(); closeToolbarModal(); closePromptModal();}
+    if(e.target.id === 'lightbox') closeLightbox();
+    if(e.target.id === 'sharePopup') closePopup();
+};
+
+document.addEventListener('keydown', (e) => {
+    const lb = document.getElementById('lightbox');
+    if (lb && lb.style.display === 'flex') {
+        if (e.key === "ArrowRight") window.nextMedia();
+        if (e.key === "ArrowLeft") window.prevMedia();
+        if (e.key === "Escape") closeLightbox();
+    }
+});
+
+const dropZoneOverlay = document.getElementById('dropZoneOverlay');
+if (dropZoneOverlay) {
+    document.body.addEventListener('dragover', (e) => { e.preventDefault(); dropZoneOverlay.style.display = "flex"; });
+    document.body.addEventListener('dragleave', (e) => { if (e.relatedTarget === null) dropZoneOverlay.style.display = "none"; });
+    document.body.addEventListener('drop', (e) => { e.preventDefault(); dropZoneOverlay.style.display = "none"; const file = e.dataTransfer.files[0]; if (file && file.name.endsWith('.json')) handleJsonImport(file); });
+}
+
+let scrollTimeout;
+window.addEventListener('scroll', () => {
+    if (!scrollTimeout) {
+        scrollTimeout = requestAnimationFrame(() => {
+            const scrollTop = window.scrollY;
+            const docHeight = document.body.scrollHeight;
+            const winHeight = window.innerHeight;
+            
+            localStorage.setItem('grokGalleryScroll', Math.round(scrollTop));
+            
+            const marker = document.getElementById('scrollMarker');
+            const progressSpan = document.getElementById('scrollProgress');
+            const dateSpan = document.getElementById('scrollDate');
+
+            const triggerPoint = docHeight - winHeight - 1500;
+            const totalLoaded = cloudIndex + linkedIndex + orphanIndex;
+            
+            if (scrollTop > triggerPoint && totalLoaded < galleryItems.length) { loadNextChunk(); }
+            
+            if (marker && progressSpan && dateSpan) {
+                let percent = 0;
+                if (docHeight > winHeight) {
+                    percent = Math.round((scrollTop / (docHeight - winHeight)) * 100);
+                }
+                
+                if (scrollTop > 300) {
+                    marker.classList.add('visible');
+                    progressSpan.textContent = percent + '%';
+                    
+                    const centerEl = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+                    const card = centerEl ? centerEl.closest('.media-card') : null;
+                    
+                    if (card && card.dataset.date) {
+                        dateSpan.textContent = '📅 ' + card.dataset.date.substring(0, 10);
+                    }
+                } else {
+                    marker.classList.remove('visible');
+                }
+            }
+            scrollTimeout = null;
+        });
+    }
+});
