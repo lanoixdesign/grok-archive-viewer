@@ -1,15 +1,10 @@
 // ==========================================
-// Grok Archive Viewer - Script Complet et Fonctionnel
-// Version mise à jour pour prod-grok-backend.json (conversations + asset_ids)
-// ==========================================
-
-// ==========================================
 // VARIABLES GLOBALES
 // ==========================================
 let allAssets = [];
 let galleryItems = []; 
 let visitedSet = new Set();
-let viewedSet = new Set();
+let viewedSet = new Set(); // NOUVELLE MÉMOIRE POUR LE STATUT "VUE"
 let currentLightboxIndex = -1;
 let authData = null;
 let billingData = null;
@@ -20,7 +15,6 @@ let autoPlayVideo = localStorage.getItem('grokAutoPlay') !== 'false';
 let selectedSet = new Set(); 
 let isCompact = localStorage.getItem('grokCompactMode') === 'true'; 
 const CHUNK_SIZE = 50; 
-
 let cloudItems = [];
 let linkedItems = [];
 let orphanItems = [];
@@ -33,29 +27,433 @@ const jsonLinksEl = document.getElementById('jsonLinks');
 const localFilesEl = document.getElementById('localFiles');
 const linkedLocalFilesEl = document.getElementById('linkedLocalFiles'); 
 
+
 // ==========================================
-// OBSERVER VIDÉOS
+// OBSERVER DES VIDÉOS (Contournement de la limite Chrome)
 // ==========================================
 videoObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         const video = entry.target;
         if (entry.isIntersecting) {
-            if ((!video.src || video.src.includes("undefined")) && video.dataset.src) {
+            // SÉCURITÉ : On s'assure de ne pas injecter "undefined"
+            if ((!video.src || video.src === "" || video.src.includes("undefined")) && video.dataset.src) {
                 video.src = video.dataset.src;
                 video.load();
             }
-            if (autoPlayVideo && !isCompact) video.play().catch(()=>{});
+            if (autoPlayVideo && !isCompact) {
+                video.play().catch(()=>{});
+            }
         } else {
             video.pause();
             video.removeAttribute('src'); 
-            video.load();
+            video.load();                 
         }
     });
 }, { rootMargin: '300px' });
 
 // ==========================================
-// EXTRACTION MÉDIAS DU BACKEND
+// GESTION DU MODE COMPACT (Bouton unique en-tête)
 // ==========================================
+window.toggleCompactModeCommon = function() {
+    isCompact = !isCompact;
+    // Sauvegarde le choix dans le navigateur
+    localStorage.setItem('grokCompactMode', isCompact);
+    
+    // Applique le mode compact sur les grilles
+    ['jsonLinks', 'linkedLocalFiles', 'localFiles'].forEach(id => {
+        const grid = document.getElementById(id);
+        if (grid) grid.classList.toggle('compact', isCompact);
+    });
+
+    updateCompactBtnUI();
+
+    // Coupe les vidéos si on passe en vue réduite
+if (isCompact) {
+        document.querySelectorAll('.lazy-video').forEach(video => {
+            video.pause();
+            video.removeAttribute('src'); // On purge Chrome
+            video.load();
+        });
+    }
+};
+
+// Garde l'ancien nom actif au cas où
+window.toggleCompactMode = function() {
+    window.toggleCompactModeCommon();
+};
+
+window.toggleCompactModeMobile = function() {
+    window.toggleCompactModeCommon();
+};
+
+// Fonction dédiée pour mettre à jour le design du nouveau bouton en haut à droite
+window.updateCompactBtnUI = function() {
+    const icon = document.getElementById('compactIcon');
+    const text = document.getElementById('compactText');
+    const btn = document.getElementById('headerCompactBtn');
+    
+    if (icon) icon.textContent = isCompact ? '🔲' : '⏹️';
+    if (text) text.textContent = isCompact ? 'Plein' : 'Compact';
+    
+    if (btn) {
+        btn.style.background = 'var(--card)';
+        btn.style.color = 'var(--text)';
+        
+    }
+};
+
+// ==========================================
+// VISIBILITÉ ACCUEIL / APPLICATION
+// ==========================================
+function updateAppVisibility() {
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const appView = document.getElementById('appView');
+    const toolbarsContainerPC = document.getElementById('toolbarsContainerPC');
+    
+    if (allAssets.length === 0) {
+        if (welcomeScreen) welcomeScreen.style.display = 'flex';
+        if (appView) appView.style.display = 'none';
+        if (toolbarsContainerPC) toolbarsContainerPC.style.display = 'none';
+    } else {
+        if (welcomeScreen) welcomeScreen.style.display = 'none';
+        if (appView) appView.style.display = 'block';
+        if (toolbarsContainerPC) toolbarsContainerPC.style.display = 'flex';
+    }
+}
+
+// ==========================================
+// PERSISTANCE INDEXEDDB
+// ==========================================
+const dbName = "GrokArchiveDB";
+const storeName = "sessionStore";
+
+async function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(storeName);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveSession() {
+    const db = await openDB();
+    const tx = db.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    if (rootHandle) {
+        await store.put(rootHandle, "rootHandle");
+        await store.delete("importedAssets");
+    } else if (allAssets.length > 0) {
+        await store.put(allAssets, "importedAssets");
+        await store.delete("rootHandle");
+    }
+    await store.put(Array.from(visitedSet), "visitedSet");
+    await store.put(Array.from(viewedSet), "viewedSet"); // ON SAUVEGARDE LES VUES
+    await store.put(Array.from(selectedSet), "selectedSet"); 
+}
+
+async function loadSession() {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        
+        const savedHandle = await new Promise(r => { const req = store.get("rootHandle"); req.onsuccess = () => r(req.result); });
+        const savedAssets = await new Promise(r => { const req = store.get("importedAssets"); req.onsuccess = () => r(req.result); });
+        const savedVisited = await new Promise(r => { const req = store.get("visitedSet"); req.onsuccess = () => r(req.result); });
+        const savedViewed = await new Promise(r => { const req = store.get("viewedSet"); req.onsuccess = () => r(req.result); });
+        const savedSelected = await new Promise(r => { const req = store.get("selectedSet"); req.onsuccess = () => r(req.result); });
+
+        if (savedVisited) visitedSet = new Set(savedVisited);
+        if (savedViewed) viewedSet = new Set(savedViewed); // ON RESTAURE LES VUES
+        if (savedSelected) selectedSet = new Set(savedSelected);
+        
+        // 1. SI C'EST UN DOSSIER LOCAL (Nécessite un clic de sécurité du navigateur)
+        if (savedHandle) {
+            rootHandle = savedHandle;
+            
+            const bigActions = document.querySelector('.big-actions');
+            if (bigActions) {
+                // On crée un gros bouton de reprise bien visible
+                const restoreBtn = document.createElement('button');
+                restoreBtn.className = "btn giant-btn action-btn";
+                restoreBtn.id = "restoreSessionBtnStart";
+                restoreBtn.innerHTML = `
+                    <span class="icon">🔄</span>
+                    <div class="text">
+                        <strong>Reprendre ma session précédente</strong>
+                        <span>Cliquez ici pour autoriser l'accès à votre dossier</span>
+                    </div>
+                `;
+                // On l'ajoute tout en haut de l'écran d'accueil
+                bigActions.prepend(restoreBtn);
+                
+                restoreBtn.onclick = async () => {
+                    if (await rootHandle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                        restoreBtn.remove();
+                        await runFullScan();
+                    }
+                };
+            }
+        } 
+        // 2. SI C'EST UN FICHIER JSON (Chargement 100% automatique !)
+        else if (savedAssets && savedAssets.length > 0) {
+            allAssets = savedAssets;
+            allAssets.forEach(a => { if (!(a.date instanceof Date)) a.date = new Date(a.date); });
+            renderGallery();
+            forceOpenSection('jsonSection');
+            updateAppVisibility();
+            updateFloatingActionBar();
+        }
+    } catch (e) { console.error("Session non chargée:", e); }
+}
+
+async function clearSession() {
+    if (!confirm("⚠️ Voulez-vous vraiment effacer toutes les données et fermer la session ?")) return;
+    try {
+        const db = await openDB();
+        const tx = db.transaction(storeName, "readwrite");
+        const store = tx.objectStore(storeName);
+        await store.clear();
+        rootHandle = null;
+        visitedSet = new Set();
+        selectedSet = new Set();
+        allAssets = [];
+        galleryItems = [];
+        authData = null;
+        billingData = null;
+        renderGallery();
+        updateAppVisibility();
+        updateFloatingActionBar();
+        const restoreBtn = document.getElementById('restoreSessionBtn');
+        if (restoreBtn) restoreBtn.remove();
+        alert("✅ Session fermée.");
+    } catch (e) { console.error(e); }
+}
+
+// ==========================================
+// UI, NAVIGATION & CHARGEMENT
+// ==========================================
+function setLoading(isLoading, message = "⏳ Analyse en cours...") { 
+    const status = document.getElementById('loadingStatus');
+    if (status) {
+        status.style.display = isLoading ? 'block' : 'none';
+        if (isLoading) status.textContent = message;
+    }
+}
+
+function toggleAccordion(targetId, el) { 
+    const allSections = ['jsonSection', 'linkedLocalSection', 'localSection'];
+    const targetSection = document.getElementById(targetId);
+    if (!targetSection) return;
+    
+    const isOpening = targetSection.classList.contains('hidden');
+
+    allSections.forEach(id => {
+        const sec = document.getElementById(id);
+        const header = sec ? sec.previousElementSibling : null;
+        
+        if (id === targetId && isOpening) {
+            if (sec) sec.classList.remove('hidden');
+            if (header) header.classList.remove('collapsed');
+            
+            const topBtnPC = document.querySelector(`.pc-tools .nav-anchor-btn[onclick*="${id}"]`);
+            if (topBtnPC) {
+                document.querySelectorAll('.pc-tools .nav-anchor-btn').forEach(b => b.classList.remove('active'));
+                topBtnPC.classList.add('active');
+            }
+            
+            const topBtnMobile = document.querySelector(`.bottom-sheet-modal .nav-anchor-btn[onclick*="${id}"]`);
+            if (topBtnMobile) {
+                document.querySelectorAll('.bottom-sheet-modal .nav-anchor-btn').forEach(b => b.classList.remove('active'));
+                topBtnMobile.classList.add('active');
+            }
+        } else {
+            if (sec) sec.classList.add('hidden');
+            if (header) header.classList.add('collapsed');
+        }
+    });
+}
+
+function forceOpenSection(id) {
+    const section = document.getElementById(id);
+    if (section) {
+        section.classList.add('hidden'); 
+        toggleAccordion(id, section.previousElementSibling);
+    }
+}
+
+window.scrollToSection = function(targetId, btnElement) {
+    toggleAccordion(targetId, document.getElementById(targetId).previousElementSibling);
+    setTimeout(() => {
+        document.getElementById(targetId).previousElementSibling.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+};
+
+window.scrollToSectionMobile = function(targetId, btnElement) {
+    scrollToSection(targetId, btnElement);
+    closeToolbarModal(); // Ferme la modale sur mobile après le clic
+};
+
+window.markAsVisited = function(url, el) { 
+    visitedSet.add(url); 
+    saveSession();
+    if(el) { el.classList.add('visited'); el.classList.remove('viewed'); } 
+};
+
+window.markAsViewed = function(el, url) { 
+    if (url) {
+        viewedSet.add(url); // On l'ajoute à la mémoire
+        saveSession();      // On sauvegarde en base de données
+    }
+    if (el && !el.classList.contains('viewed')) el.classList.add('viewed'); 
+};
+
+// ==========================================
+// IMPORT JSON ET SCANNAGE
+// ==========================================
+async function handleJsonImport(file) {
+    setLoading(true, "📂 Importation du fichier JSON...");
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const posts = data.media_posts || (Array.isArray(data) ? data : null);
+
+        if (!posts) throw new Error("Format JSON non reconnu.");
+
+        allAssets = posts.map(p => ({
+            id: p.id,
+            prompt: p.prompt || 'Importé',
+            url: p.url,
+            link: p.link || `https://grok.com/imagine/post/${p.id}`,
+            media_type: p.media_type || p.type || 'image',
+            date: new Date(p.date || p.create_time || Date.now()),
+            source: 'Cloud'
+        }));
+
+        rootHandle = null; 
+        await saveSession(); 
+        renderGallery();
+        updateAppVisibility();
+        forceOpenSection('jsonSection');
+    } catch (e) {
+        alert("❌ Erreur d'importation : " + e.message);
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function runFullScan() {
+    setLoading(true, "🔍 Récupération des données...");
+    allAssets = [];
+    authData = null;
+    billingData = null;
+    
+    await scanDirectory(rootHandle);
+
+    // === Appariement intelligent Local ↔ Cloud ===
+    allAssets.forEach(asset => {
+        if (asset.source === 'Local') {
+            const cloudMatch = allAssets.find(a => 
+                a.source === 'Cloud' && a.id === asset.id
+            );
+            
+            if (cloudMatch) {
+                asset.prompt = cloudMatch.prompt;
+                asset.link = cloudMatch.link;
+                asset.hasCloudMatch = true;
+            } else {
+                asset.prompt = "Texte indisponible (Média orphelin)";
+                asset.hasCloudMatch = false;
+            }
+        }
+    });
+
+    setLoading(false);
+    renderGallery();
+    updateAppVisibility();
+    
+    if (allAssets.some(a => a.source === 'Cloud')) {
+        forceOpenSection('jsonSection');
+    } else if (allAssets.some(a => a.source === 'Local')) {
+        forceOpenSection('localSection');
+    }
+}
+
+async function scanDirectory(handle) {
+    for await (const entry of handle.values()) {
+        try {
+            if (entry.kind === 'file') {
+                const file = await entry.getFile();
+                
+                if (entry.name === 'prod-mc-auth-mgmt-api.json') {
+                    authData = JSON.parse(await file.text());
+                }
+                if (entry.name === 'prod-mc-billing.json') {
+                    billingData = JSON.parse(await file.text());
+                }
+                
+                if (entry.name === 'prod-grok-backend.json') {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    
+                    // Utilise la nouvelle fonction d'extraction (à ajouter aussi)
+                    const rawPosts = extractMediaFromBackend(data);
+                    
+                    rawPosts.forEach(p => {
+                        if (allAssets.some(a => a.id === p.id && a.source === 'Cloud')) return;
+                        
+                        const isVideo = p.media_type === 'video';
+                        const realPrompt = p.original_prompt || p.prompt || 
+                                         (typeof p.message === 'string' ? p.message.substring(0, 150) : 'Texte introuvable');
+                        
+                        allAssets.push({
+                            id: p.id,
+                            prompt: realPrompt,
+                            url: isVideo 
+                                ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
+                                : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
+                            poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
+                            link: p.link || `https://grok.com/imagine/post/${p.id}`,
+                            media_type: isVideo ? 'video' : 'image',
+                            date: new Date(p.create_time || p.date || Date.now()),
+                            source: 'Cloud'
+                        });
+                    });
+                }
+            } 
+            else if (entry.kind === 'directory') {
+                if (entry.name === 'prod-mc-asset-server') {
+                    // === GESTION DES ÉLÉMENTS LOCAUX ===
+                    for await (const sub of entry.values()) {
+                        if (sub.kind === 'directory') {
+                            for await (const aFile of sub.values()) {
+                                if (aFile.name.startsWith('content')) {
+                                    const file = await aFile.getFile();
+                                    allAssets.push({
+                                        id: sub.name,
+                                        prompt: sub.name,
+                                        url: URL.createObjectURL(file),
+                                        media_type: file.type.startsWith('video') ? 'video' : 'image',
+                                        date: new Date(file.lastModified),
+                                        source: 'Local',
+                                        parentHandle: sub,
+                                        grandParentHandle: entry
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    await scanDirectory(entry);
+                }
+            }
+        } catch (e) {
+            console.warn("Erreur scan:", e);
+        }
+    }
+}
+
 function extractMediaFromBackend(data) {
     const assets = [];
 
@@ -89,276 +487,6 @@ function extractMediaFromBackend(data) {
     if (Array.isArray(data)) return data;
     return assets;
 }
-
-// ==========================================
-// IMPORT JSON
-// ==========================================
-async function handleJsonImport(file) {
-    setLoading(true, "📂 Importation du backend...");
-    try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        const rawPosts = extractMediaFromBackend(data);
-
-        if (!rawPosts || rawPosts.length === 0) {
-            throw new Error("Aucun média trouvé dans le fichier.");
-        }
-
-        allAssets = rawPosts.map(p => {
-            const isVideo = p.media_type === 'video' || (p.url && p.url.includes('.mp4'));
-            const realPrompt = p.original_prompt || p.prompt || 
-                              (typeof p.message === 'string' ? p.message.substring(0, 200) : 'Génération Grok');
-            
-            return {
-                id: p.id,
-                prompt: realPrompt,
-                url: isVideo 
-                    ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
-                    : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
-                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
-                link: p.link || `https://grok.com/imagine/post/${p.id}`,
-                media_type: isVideo ? 'video' : 'image',
-                date: new Date(p.date || p.create_time || Date.now()),
-                source: 'Cloud'
-            };
-        }).filter(a => a.id);
-
-        rootHandle = null;
-        await saveSession();
-        renderGallery();
-        updateAppVisibility();
-        forceOpenSection('jsonSection');
-        alert(`✅ ${allAssets.length} médias importés avec succès !`);
-    } catch (e) {
-        console.error(e);
-        alert("❌ Erreur d'importation : " + e.message);
-    } finally {
-        setLoading(false);
-    }
-}
-
-// ==========================================
-// PERSISTANCE INDEXEDDB
-// ==========================================
-async function openDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open("GrokArchiveDB", 1);
-        request.onupgradeneeded = () => request.result.createObjectStore("sessionStore");
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-async function saveSession() {
-    try {
-        const db = await openDB();
-        const tx = db.transaction("sessionStore", "readwrite");
-        const store = tx.objectStore("sessionStore");
-        if (rootHandle) {
-            await store.put(rootHandle, "rootHandle");
-        } else if (allAssets.length > 0) {
-            await store.put(allAssets, "importedAssets");
-        }
-        await store.put(Array.from(visitedSet), "visitedSet");
-        await store.put(Array.from(viewedSet), "viewedSet");
-        await store.put(Array.from(selectedSet), "selectedSet");
-    } catch (e) {
-        console.error("Erreur sauvegarde session:", e);
-    }
-}
-
-async function loadSession() {
-    try {
-        const db = await openDB();
-        const tx = db.transaction("sessionStore", "readonly");
-        const store = tx.objectStore("sessionStore");
-        
-        const savedAssets = await new Promise(r => {
-            const req = store.get("importedAssets");
-            req.onsuccess = () => r(req.result);
-        });
-        
-        if (savedAssets && savedAssets.length > 0) {
-            allAssets = savedAssets;
-            allAssets.forEach(a => {
-                if (!(a.date instanceof Date)) a.date = new Date(a.date);
-            });
-            renderGallery();
-            updateAppVisibility();
-            forceOpenSection('jsonSection');
-        }
-    } catch (e) {
-        console.error("Erreur chargement session:", e);
-    }
-}
-
-async function runFullScan() {
-    setLoading(true, "🔍 Scan du dossier en cours...");
-    allAssets = [];
-    await scanDirectory(rootHandle);
-    
-    allAssets.forEach(asset => {
-        if (asset.source === 'Local') {
-            const match = allAssets.find(a => a.source === 'Cloud' && a.id === asset.id);
-            if (match) {
-                asset.prompt = match.prompt;
-                asset.link = match.link;
-                asset.hasCloudMatch = true;
-            } else {
-                asset.prompt = "Média orphelin";
-                asset.hasCloudMatch = false;
-            }
-        }
-    });
-    
-    setLoading(false);
-    renderGallery();
-    updateAppVisibility();
-}
-
-// ==========================================
-// SCAN DIRECTORY
-// ==========================================
-async function scanDirectory(handle) {
-    for await (const entry of handle.values()) {
-        try {
-            if (entry.kind === 'file') {
-                const file = await entry.getFile();
-                if (entry.name === 'prod-mc-auth-mgmt-api.json') authData = JSON.parse(await file.text());
-                if (entry.name === 'prod-mc-billing.json') billingData = JSON.parse(await file.text());
-                
-                if (entry.name === 'prod-grok-backend.json') {
-                    const text = await file.text();
-                    const data = JSON.parse(text);
-                    const rawPosts = extractMediaFromBackend(data);
-                    
-                    rawPosts.forEach(p => {
-                        if (allAssets.some(a => a.id === p.id && a.source === 'Cloud')) return;
-                        
-                        const isVideo = p.media_type === 'video';
-                        const realPrompt = p.original_prompt || p.prompt || 
-                                         (typeof p.message === 'string' ? p.message.substring(0, 150) : 'Texte introuvable');
-                        
-                        allAssets.push({
-                            id: p.id,
-                            prompt: realPrompt,
-                            url: isVideo 
-                                ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4`
-                                : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
-                            poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
-                            link: p.link || `https://grok.com/imagine/post/${p.id}`,
-                            media_type: isVideo ? 'video' : 'image',
-                            date: new Date(p.create_time || p.date || Date.now()),
-                            source: 'Cloud'
-                        });
-                    });
-                }
-            } else if (entry.kind === 'directory') {
-                if (entry.name === 'prod-mc-asset-server') {
-                    for await (const sub of entry.values()) {
-                        if (sub.kind === 'directory') {
-                            for await (const aFile of sub.values()) {
-                                if (aFile.name.startsWith('content')) {
-                                    const file = await aFile.getFile();
-                                    allAssets.push({
-                                        id: sub.name,
-                                        prompt: sub.name,
-                                        url: URL.createObjectURL(file),
-                                        media_type: file.type.startsWith('video') ? 'video' : 'image',
-                                        date: new Date(file.lastModified),
-                                        source: 'Local',
-                                        parentHandle: sub,
-                                        grandParentHandle: entry
-                                    });
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    await scanDirectory(entry);
-                }
-            }
-        } catch (e) {
-            console.warn("Erreur lors du scan:", e);
-        }
-    }
-}
-
-// ==========================================
-// FONCTIONS UI (UI HELPERS)
-// ==========================================
-function setLoading(isLoading, message = "⏳ Analyse en cours...") { 
-    const status = document.getElementById('loadingStatus');
-    if (status) {
-        status.style.display = isLoading ? 'block' : 'none';
-        if (isLoading) status.textContent = message;
-    }
-}
-
-function updateAppVisibility() {
-    const welcome = document.getElementById('welcomeScreen');
-    const appView = document.getElementById('appView');
-    if (allAssets.length === 0) {
-        if (welcome) welcome.style.display = 'flex';
-        if (appView) appView.style.display = 'none';
-    } else {
-        if (welcome) welcome.style.display = 'none';
-        if (appView) appView.style.display = 'block';
-    }
-}
-
-function forceOpenSection(id) {
-    const section = document.getElementById(id);
-    if (section) {
-        section.classList.remove('hidden');
-        const header = section.previousElementSibling;
-        if (header) header.classList.remove('collapsed');
-    }
-}
-
-window.markAsVisited = function(url, el) { 
-    visitedSet.add(url); 
-    saveSession();
-    if (el) { 
-        el.classList.add('visited'); 
-        el.classList.remove('viewed'); 
-    } 
-};
-
-window.markAsViewed = function(el, url) { 
-    if (url) viewedSet.add(url);
-    saveSession();
-    if (el && !el.classList.contains('viewed')) el.classList.add('viewed'); 
-};
-
-
-// ==========================================
-// Le reste du code (tes fonctions existantes)
-// ==========================================
-// (createCardElement, setupCardEvents, renderGallery, etc. restent identiques à ce que tu as envoyé)
-
-function setLoading(isLoading, message = "⏳ Analyse en cours...") { 
-    const status = document.getElementById('loadingStatus');
-    if (status) {
-        status.style.display = isLoading ? 'block' : 'none';
-        if (isLoading) status.textContent = message;
-    }
-}
-
-function updateAppVisibility() {
-    const welcome = document.getElementById('welcomeScreen');
-    const appView = document.getElementById('appView');
-    if (allAssets.length === 0) {
-        if (welcome) welcome.style.display = 'flex';
-        if (appView) appView.style.display = 'none';
-    } else {
-        if (welcome) welcome.style.display = 'none';
-        if (appView) appView.style.display = 'block';
-    }
-}
-
-
-
 
 function createCardElement(asset, idx) {
     const isV = visitedSet.has(asset.url);
@@ -1268,15 +1396,3 @@ window.addEventListener('scroll', () => {
         });
     }
 });
-
-
-// ==========================================
-// INITIALISATION
-// ==========================================
-window.onload = async () => { 
-    await loadSession(); 
-    if (typeof setupSelectAllCheckboxes === 'function') setupSelectAllCheckboxes();
-    updateAppVisibility(); 
-};
-
-console.log("✅ Script-fixed.js chargé avec succès - Support backend complet");
