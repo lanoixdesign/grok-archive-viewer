@@ -1,6 +1,5 @@
 // ==========================================
-// Grok Archive Viewer - Version Finale
-// Support complet prod-grok-backend.json
+// Grok Archive Viewer - Version Finale Complète
 // ==========================================
 
 // ==========================================
@@ -54,55 +53,33 @@ videoObserver = new IntersectionObserver((entries) => {
 }, { rootMargin: '300px' });
 
 // ==========================================
-// EXTRACTION MÉDIAS BACKEND
+// EXTRACTION MÉDIAS
 // ==========================================
 function extractMediaFromBackend(data) {
     const assets = [];
-
-    if (data.media_posts && Array.isArray(data.media_posts)) {
-        return data.media_posts;
-    }
+    if (data.media_posts && Array.isArray(data.media_posts)) return data.media_posts;
 
     if (data.conversations && Array.isArray(data.conversations)) {
         data.conversations.forEach(conv => {
             const title = conv.conversation?.title || "Sans titre";
             if (conv.responses && Array.isArray(conv.responses)) {
                 conv.responses.forEach(response => {
-                    if (response.asset_ids && Array.isArray(response.asset_ids)) {
+                    if (response.asset_ids) {
                         response.asset_ids.forEach(id => {
                             assets.push({
                                 id,
-                                prompt: response.message ? 
-                                    (typeof response.message === 'string' ? response.message.substring(0, 180) : title) : title,
+                                prompt: response.message ? (typeof response.message === 'string' ? response.message.substring(0, 180) : title) : title,
                                 media_type: 'image',
-                                date: new Date(response.create_time || conv.conversation?.create_time),
+                                date: new Date(response.create_time),
                                 link: `https://grok.com/imagine/post/${id}`,
                                 source: 'Cloud'
                             });
-                        });
-                    }
-                    if (response.card_attachments_json && Array.isArray(response.card_attachments_json)) {
-                        response.card_attachments_json.forEach(att => {
-                            try {
-                                const attData = typeof att === 'string' ? JSON.parse(att) : att;
-                                if (attData.id) {
-                                    assets.push({
-                                        id: attData.id,
-                                        prompt: (response.message || title).toString().substring(0, 150),
-                                        media_type: attData.media_type || 'image',
-                                        date: new Date(response.create_time),
-                                        link: attData.link || `https://grok.com/imagine/post/${attData.id}`,
-                                        source: 'Cloud'
-                                    });
-                                }
-                            } catch(e) {}
                         });
                     }
                 });
             }
         });
     }
-
     if (Array.isArray(data)) return data;
     return assets;
 }
@@ -111,37 +88,30 @@ function extractMediaFromBackend(data) {
 // IMPORT JSON
 // ==========================================
 async function handleJsonImport(file) {
-    setLoading(true, "📂 Importation prod-grok-backend.json...");
+    setLoading(true, "📂 Importation backend...");
     try {
         const text = await file.text();
         const data = JSON.parse(text);
         const rawPosts = extractMediaFromBackend(data);
 
-        if (!rawPosts || rawPosts.length === 0) throw new Error("Aucun média trouvé.");
+        if (rawPosts.length === 0) throw new Error("Aucun média trouvé.");
 
-        allAssets = rawPosts.map(p => {
-            const isVideo = p.media_type === 'video' || (p.url && p.url.includes('.mp4'));
-            const realPrompt = p.original_prompt || p.prompt || 
-                              (typeof p.message === 'string' ? p.message.substring(0, 200) : 'Génération Grok');
-            
-            return {
-                id: p.id,
-                prompt: realPrompt,
-                url: isVideo ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
-                poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
-                link: p.link || `https://grok.com/imagine/post/${p.id}`,
-                media_type: isVideo ? 'video' : 'image',
-                date: new Date(p.date || p.create_time || Date.now()),
-                source: 'Cloud'
-            };
-        }).filter(a => a.id);
+        allAssets = rawPosts.map(p => ({
+            id: p.id,
+            prompt: p.original_prompt || p.prompt || (typeof p.message === 'string' ? p.message.substring(0,200) : 'Génération Grok'),
+            url: (p.media_type === 'video' ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`),
+            poster: p.media_type === 'video' ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
+            link: p.link || `https://grok.com/imagine/post/${p.id}`,
+            media_type: p.media_type || 'image',
+            date: new Date(p.create_time || Date.now()),
+            source: 'Cloud'
+        })).filter(a => a.id);
 
         rootHandle = null;
         await saveSession();
         renderGallery();
         updateAppVisibility();
         forceOpenSection('jsonSection');
-        
         alert(`✅ ${allAssets.length} médias chargés !`);
     } catch (e) {
         alert("❌ Erreur : " + e.message);
@@ -151,14 +121,14 @@ async function handleJsonImport(file) {
 }
 
 // ==========================================
-// PERSISTANCE & SESSION
+// PERSISTANCE
 // ==========================================
 async function openDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open("GrokArchiveDB", 1);
-        request.onupgradeneeded = () => request.result.createObjectStore("sessionStore");
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        const req = indexedDB.open("GrokArchiveDB", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("sessionStore");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
     });
 }
 
@@ -178,45 +148,19 @@ async function loadSession() {
         const db = await openDB();
         const tx = db.transaction("sessionStore", "readonly");
         const store = tx.objectStore("sessionStore");
-        
-        const savedHandle = await new Promise(r => { const req = store.get("rootHandle"); req.onsuccess = () => r(req.result); });
         const savedAssets = await new Promise(r => { const req = store.get("importedAssets"); req.onsuccess = () => r(req.result); });
-        const savedVisited = await new Promise(r => { const req = store.get("visitedSet"); req.onsuccess = () => r(req.result); });
-        const savedViewed = await new Promise(r => { const req = store.get("viewedSet"); req.onsuccess = () => r(req.result); });
-        const savedSelected = await new Promise(r => { const req = store.get("selectedSet"); req.onsuccess = () => r(req.result); });
-
-        if (savedVisited) visitedSet = new Set(savedVisited);
-        if (savedViewed) viewedSet = new Set(savedViewed);
-        if (savedSelected) selectedSet = new Set(savedSelected);
-
-        if (savedAssets && savedAssets.length > 0) {
+        if (savedAssets) {
             allAssets = savedAssets;
-            allAssets.forEach(a => { if (!(a.date instanceof Date)) a.date = new Date(a.date); });
             renderGallery();
-            forceOpenSection('jsonSection');
             updateAppVisibility();
         }
-    } catch (e) { console.error("Session non chargée:", e); }
+    } catch (e) {}
 }
 
 async function runFullScan() {
-    setLoading(true, "🔍 Scan du dossier...");
+    setLoading(true);
     allAssets = [];
     await scanDirectory(rootHandle);
-    // Appariement Cloud/Local
-    allAssets.forEach(asset => {
-        if (asset.source === 'Local') {
-            const match = allAssets.find(a => a.source === 'Cloud' && a.id === asset.id);
-            if (match) {
-                asset.prompt = match.prompt;
-                asset.link = match.link;
-                asset.hasCloudMatch = true;
-            } else {
-                asset.prompt = "Média orphelin";
-                asset.hasCloudMatch = false;
-            }
-        }
-    });
     setLoading(false);
     renderGallery();
     updateAppVisibility();
@@ -230,25 +174,20 @@ async function scanDirectory(handle) {
         try {
             if (entry.kind === 'file') {
                 const file = await entry.getFile();
-                if (entry.name === 'prod-mc-auth-mgmt-api.json') authData = JSON.parse(await file.text());
-                if (entry.name === 'prod-mc-billing.json') billingData = JSON.parse(await file.text());
-                
                 if (entry.name === 'prod-grok-backend.json') {
-                    const text = await file.text();
-                    const data = JSON.parse(text);
+                    const data = JSON.parse(await file.text());
                     const rawPosts = extractMediaFromBackend(data);
                     rawPosts.forEach(p => {
                         if (allAssets.some(a => a.id === p.id && a.source === 'Cloud')) return;
                         const isVideo = p.media_type === 'video';
-                        const realPrompt = p.original_prompt || p.prompt || (typeof p.message === 'string' ? p.message.substring(0, 150) : 'Texte introuvable');
                         allAssets.push({
                             id: p.id,
-                            prompt: realPrompt,
+                            prompt: p.original_prompt || p.prompt || 'Texte introuvable',
                             url: isVideo ? `https://imagine-public.x.ai/imagine-public/share-videos/${p.id}.mp4` : `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg`,
                             poster: isVideo ? `https://imagine-public.x.ai/imagine-public/images/${p.id}.jpg` : null,
-                            link: p.link || `https://grok.com/imagine/post/${p.id}`,
+                            link: p.link,
                             media_type: isVideo ? 'video' : 'image',
-                            date: new Date(p.create_time || p.date),
+                            date: new Date(p.create_time),
                             source: 'Cloud'
                         });
                     });
@@ -259,13 +198,13 @@ async function scanDirectory(handle) {
                         if (sub.kind === 'directory') {
                             for await (const aFile of sub.values()) {
                                 if (aFile.name.startsWith('content')) {
-                                    const file = await aFile.getFile();
+                                    const f = await aFile.getFile();
                                     allAssets.push({
                                         id: sub.name,
                                         prompt: sub.name,
-                                        url: URL.createObjectURL(file),
-                                        media_type: file.type.startsWith('video') ? 'video' : 'image',
-                                        date: new Date(file.lastModified),
+                                        url: URL.createObjectURL(f),
+                                        media_type: f.type.startsWith('video') ? 'video' : 'image',
+                                        date: new Date(f.lastModified),
                                         source: 'Local',
                                         parentHandle: sub,
                                         grandParentHandle: entry
@@ -274,13 +213,41 @@ async function scanDirectory(handle) {
                             }
                         }
                     }
-                } else {
-                    await scanDirectory(entry);
-                }
+                } else await scanDirectory(entry);
             }
-        } catch (e) {}
+        } catch(e) {}
     }
 }
+
+// ==========================================
+// UI HELPERS
+// ==========================================
+function setLoading(isLoading, message = "⏳") {
+    const status = document.getElementById('loadingStatus');
+    if (status) status.style.display = isLoading ? 'block' : 'none';
+}
+
+function updateAppVisibility() {
+    const welcome = document.getElementById('welcomeScreen');
+    const app = document.getElementById('appView');
+    if (welcome) welcome.style.display = allAssets.length === 0 ? 'flex' : 'none';
+    if (app) app.style.display = allAssets.length > 0 ? 'block' : 'none';
+}
+
+function forceOpenSection(id) {
+    const section = document.getElementById(id);
+    if (section) {
+        section.classList.remove('hidden');
+        // Ajoute ici le code pour ouvrir l'accordéon si nécessaire
+    }
+}
+
+window.markAsViewed = function(el, url) {
+    if (url) viewedSet.add(url);
+    saveSession();
+    if (el) el.classList.add('viewed');
+};
+
 
 // ==========================================
 // Le reste du code (tes fonctions existantes)
